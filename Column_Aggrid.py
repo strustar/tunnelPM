@@ -201,7 +201,14 @@ def display_data_with_aggrid(headers, PM, height, width=840, column_widths=None,
 
     # 6. 그리드 옵션 설정
     gb.configure_grid_options(
-        domLayout='normal', rowHeight=40, headerHeight=60, suppressRowTransform=True, suppressMenuHide=True
+        domLayout='normal',
+        rowHeight=40,
+        headerHeight=60,
+        suppressRowTransform=True,
+        enableRangeSelection=True,
+        # enableExcelExport=True,
+        # enableCsvExport=False,  # csv 비활성화
+        # suppressExcelExport=False,
     )
 
     # 7. 풀 데이터 모드인 경우 페이지네이션 적용
@@ -225,9 +232,11 @@ def display_data_with_aggrid(headers, PM, height, width=840, column_widths=None,
         fit_columns_on_grid_load=False,
         update_mode="value_changed",
         allow_unsafe_jscode=True,
+        enable_enterprise_modules=True,  # ⚠️ 필수: export 기능 활성화
         height=height,
         width=width,
         custom_css={
+            ".ag-header-cell-menu-button": {"display": "none !important"},  # 점 세 개 숨김
             ".ag-header-cell": {
                 "border": "1px solid gray",
                 "background-color": "rgba(0, 0, 255, 0.2) !important",
