@@ -1,4 +1,5 @@
 import numpy as np
+import streamlit as st
 
 
 class PM1:
@@ -15,10 +16,12 @@ def Cal(In, Reinforcement_Type):
     PM_Type = In.PM_Type
 
     [be, height, D] = [In.be, In.height, In.D]
-    [fck, fy, f_fu, Ec, Es, Ef] = [In.fck, In.fy, In.f_fu, In.Ec, In.Es, In.Ef]
-    [Layer, dia, dc, nh, nb, nD] = [In.Layer, In.dia, In.dc, In.nh, In.nb, In.nD]
+    [fck, fy, f_fu, Ec, Es, Ef, Es_hollow, fy_hollow] = [In.fck, In.fy, In.f_fu, In.Ec, In.Es, In.Ef, In.Es_hollow, In.fy_hollow]
+    [Layer, dia, dc, nh, nb, nD, sb, dia1, dc1] = [In.Layer, In.dia, In.dc, In.nh, In.nb, In.nD, In.sb, In.dia1, In.dc1]
     # Input Data
-    [ep_y, ep_fu] = [fy / Es, f_fu / Ef]
+    [ep_y, ep_fu, ep_y_hollow] = [fy / Es, f_fu / Ef, fy_hollow / Es_hollow]
+    if 'hollow' in Reinforcement_Type:
+        [Es, fy, ep_y] = [Es_hollow, fy_hollow, ep_y_hollow]
     if 'FRP' in Reinforcement_Type:
         [Es, fy, ep_y] = [Ef, f_fu, ep_fu]
 
@@ -62,41 +65,42 @@ def Cal(In, Reinforcement_Type):
     ###* Coefficient ###
 
     ###* Preparation for Calculation ###
-    [nst, ni, Ast] = [np.zeros(Layer), np.zeros(Layer), [np.pi * d**2 / 4 / 2 for d in dia]]
+    [nst, nst1, ni, Ast, Ast1] = [np.zeros(Layer), np.zeros(Layer), np.zeros(Layer), [np.pi * d**2 / 4 for d in dia], [np.pi * d**2 / 4 for d in dia1]]
+    if 'hollow' in Reinforcement_Type:
+        Ast = [a / 2 for a in Ast]  ## / 2 : 중공철근 !!!
+        Ast1 = [a / 2 for a in Ast1]  ## / 2 : 중공철근 !!!
     if 'Rectangle' in Section_Type:
         [hD, Ag, ni] = [height, be * height, nh]
         for L in range(Layer):
-            for i in range(nh[L]):
-                for j in range(nb[L]):
-                    if (i > 0 and i < nh[L] - 1) and (j > 0 and j < nb[L] - 1):
-                        continue
-                    nst[L] = nst[L] + 1
-    if 'Circle' in Section_Type:
-        nst = np.array(nD)
-        [hD, Ag, ni] = [D, np.pi * D**2 / 4, np.int32(np.floor(nst / 2) + 1)]
+            nst[L] = be / sb[0]
+            nst1[L] = be / sb[0]
+            # for i in range(nh[L]):
+            #     for j in range(nb[L]):
+            #         if (i > 0 and i < nh[L] - 1) and (j > 0 and j < nb[L] - 1):
+            #             continue
+            #         nst[L] = nst[L] + 1
 
-    Ast = np.multiply(nst, Ast)
-    rho = np.sum(Ast) / Ag
+    Ast_total = np.multiply(nst, Ast) + np.multiply(nst1, Ast1)
+    rho = np.sum(Ast_total) / Ag
     if 'Rectangle' in Section_Type:
-        A1 = np.sum(Ast) / np.sum(nst) * nb[0]
-        A2 = np.sum(Ast) / 2 - A1  # for ACI 440.1R-15(06), Zadeh & Nanni
+        A1 = 0
+        A2 = 0
 
     dsi, Asi = np.zeros((Layer, np.max(ni))), np.zeros((Layer, np.max(ni)))  # initial_rotation = 0 for Circle Section
-    for L in range(Layer):
-        for i in range(ni[L]):
-            if 'Rectangle' in Section_Type:
-                dsi[L, i] = dc[L] + i * (height - 2 * dc[L]) / (ni[L] - 1)
-                Asi[L, i] = 2 * Ast[L] / nst[L]
-                Asi[L, 0] = nb[L] * Ast[L] / nst[L]
-                Asi[L, ni[L] - 1] = Asi[L, 0]
-            if 'Circle' in Section_Type:
-                [r, theta] = [D / 2 - dc[L], i * 2 * np.pi / nst[L]]
-                dsi[L, i] = D / 2 - r * np.cos(theta)
-                Asi[L, i] = 2 * Ast[L] / nst[L]
-                Asi[L, 0] = Ast[L] / nst[L]
-                Asi[L, ni[L] - 1] = Asi[L, 0]  # 짝수개 및 0도 배열
+    dsi[0, :2] = [dc1[0], height - dc1[0]]
+    # nb = be / sb[0]
+    Asi[0, :2] = [Ast1[0] * nst1[0], Ast[0] * nst[0]]
+
+    # for L in range(Layer):
+    #     for i in range(ni[L]):
+    #         if 'Rectangle' in Section_Type:
+    #             # dsi[L, i] = dc[L] + i * (height - 2 * dc[L]) / (ni[L] - 1)
+    #             Asi[L, i] = 2 * Ast[L] / nst[L]
+    #             Asi[L, 0] = nb[L] * Ast[L] / nst[L]
+    #             Asi[L, ni[L] - 1] = Asi[L, 0]
     ###* Preparation for Calculation ###
 
+    # st.write(dsi, Asi, nst)
     d = np.max(dsi)
     gamma = d / hD
     n = 7
@@ -107,8 +111,8 @@ def Cal(In, Reinforcement_Type):
     z1 = 1 - 1
     cc[z1] = np.inf
     Mn[z1] = 0
-    Rein = 0 if 'FRP' in Reinforcement_Type else fy * np.sum(Ast)
-    Pn[z1] = (eta * 0.85 * fck * (Ag - np.sum(Ast)) + Rein) / 1e3
+    Rein = 0 if 'FRP' in Reinforcement_Type else fy * np.sum(Ast_total)
+    Pn[z1] = (eta * 0.85 * fck * (Ag - np.sum(Ast_total)) + Rein) / 1e3
     if ('FRP' in Reinforcement_Type) and ('ACI 440.1' in FRP_Code):
         Pn[z1] = 0.85 * fck * Ag / 1e3
     ee[z1] = Mn[z1] / Pn[z1] * 1e3
@@ -120,7 +124,7 @@ def Cal(In, Reinforcement_Type):
     z1 = 7 - 1
     cc[z1] = -np.inf
     Mn[z1] = 0
-    Pn[z1] = -np.sum(Ast) * fy / 1e3
+    Pn[z1] = -np.sum(Ast_total) * fy / 1e3
     ee[z1] = -0.000000001  # Mn[z1]/Pn[z1]*1e3
     ep_s[z1, 0:2] = -ep_y
     fs[z1, 0:2] = -fy
@@ -131,8 +135,8 @@ def Cal(In, Reinforcement_Type):
         if 'Rectangle' in Section_Type:
             M = (2 * gamma - 1) ** 2 / (2 * gamma) * (A1 + A2 / 3) * f_fu * hD / 1e6
         if 'Circle' in Section_Type:
-            M = (2 * gamma - 1) ** 2 / (8 * gamma) * np.sum(Ast) * f_fu * hD / 1e6
-        P = -np.sum(Ast) / (2 * gamma) * f_fu / 1e3
+            M = (2 * gamma - 1) ** 2 / (8 * gamma) * np.sum(Ast_total) * f_fu * hD / 1e6
+        P = -np.sum(Ast_total) / (2 * gamma) * f_fu / 1e3
         [Pn8, Mn8, Pd8, Md8] = [P, M, 0.55 * P, 0.55 * M]  # c = 0, ep_s = -ep_y, fs = -fy
     ##* %%% Calculation Point x = c = 0(8-1) : for Only ACI 440.1
 
@@ -163,7 +167,7 @@ def Cal(In, Reinforcement_Type):
                 if 'Rectangle' in Section_Type:
                     [P, M] = ACI440_Rectangle(alp, beta1, gamma, fck, ep_cu, Ef, A1, A2, be, height)
                 if 'Circle' in Section_Type:
-                    [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D)
+                    [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D)
 
                 for L in range(Layer):
                     for i in range(ni[L]):
@@ -184,8 +188,6 @@ def Cal(In, Reinforcement_Type):
                 c = d * ep_cu / (ep_cu + eps)
                 if 'Rectangle' in Section_Type:
                     bhD = [hD, be, height]
-                if 'Circle' in Section_Type:
-                    bhD = [hD, D]
                 [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
 
             if zz == 1:
@@ -230,7 +232,7 @@ def Cal(In, Reinforcement_Type):
                             x = hD / 2 + (k1 - 1) * hD / iter
                             alp = x / d
                             c = x
-                            [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D)
+                            [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D)
                             if np.abs(Pnn - P) < tol:
                                 break
                         if k1 == iter:
@@ -264,7 +266,7 @@ def Cal(In, Reinforcement_Type):
                         for k1 in np.arange(1, 1000):  #! 처음부터 고려한 경우  ##########################
                             alp = x / d
                             c = x
-                            [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D)
+                            [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D)
                             temp[k1] = Pnn - P
                             sgn1 = np.sign(temp[k1 - 1])
                             sgn2 = np.sign(temp[k1])
@@ -278,7 +280,7 @@ def Cal(In, Reinforcement_Type):
                         # for k3 in [1, 2, 3]:          #! 처음부터 고려한 경우  ##########################
                         #     for k1 in np.arange(1, iter):
                         #         x = hD/100 + (k1 - 1)*hD/2/iter;  alp = x/d;  c = x
-                        #         [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D)
+                        #         [P, M] = ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D)
                         #         if np.abs(Pnn - P) < tol: break
                         #     if k1 == iter: tol = 10*tol   #! 수렴이 안될 경우
                         #     else: break
@@ -288,25 +290,85 @@ def Cal(In, Reinforcement_Type):
                     ep_si[L, i] = ep_cu * (c - dsi[L, i]) / c
                     fsi[L, i] = Es * ep_si[L, i]
         else:  #############! for RC & AASHTO
+            # 초기화
             k7 = 0
             c = hD / 2
-            for k1 in np.arange(2, 1000):
-                if 'Rectangle' in Section_Type:
-                    bhD = [hD, be, height]
-                if 'Circle' in Section_Type:
-                    bhD = [hD, D]
-                [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+            temp = np.zeros(1001)  # temp 배열 명시적 초기화
+            temp[1] = float('inf')  # 첫 번째 값을 무한대로 설정하여 비교 가능하게 함
 
-                temp[k1] = Pnn - P
-                sgn1 = np.sign(temp[k1 - 1])
-                sgn2 = np.sign(temp[k1])
-                sgn = sgn1 * sgn2
-                if sgn == -1:
-                    k7 = k7 + 1
-                c = c + sgn2 * 100 / 10**k7
-                if abs(temp[k1]) <= 1e-1:
-                    break
+            # Pnn=0인 경우 특별 처리
+            if abs(Pnn) < 1e-6:
+                # 순수 휨 상태에서는 중립축 위치를 단면 높이의 일정 비율로 시작
+                c = 0.4 * hD  # 일반적으로 RC 단면에서 순수 휨 상태의 중립축은 높이의 약 0.4배 근처
 
+                # 더 세밀한 초기 스텝 크기
+                step_size = 0.05 * hD
+                direction = 1  # 초기 탐색 방향
+
+                # 첫 번째 값 계산
+                bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
+                [P_init, M_init] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+                temp[1] = P_init  # Pnn=0이므로 P_init 자체가 오차
+
+                # 방향 결정
+                if P_init > 0:
+                    direction = -1  # P를 줄이는 방향으로 탐색
+                else:
+                    direction = 1  # P를 늘리는 방향으로 탐색
+
+                for k1 in np.arange(2, 1000):
+                    bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
+                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+
+                    temp[k1] = P  # Pnn=0이므로 P 자체가 오차
+
+                    # 부호 변화 확인
+                    sgn1 = np.sign(temp[k1 - 1])
+                    sgn2 = np.sign(temp[k1])
+                    sgn = sgn1 * sgn2
+
+                    # 부호가 바뀌면 스텝 크기 감소 및 방향 전환
+                    if sgn == -1:
+                        k7 = k7 + 1
+                        direction = -direction  # 방향 전환
+
+                    # 중립축 위치 조정 (더 점진적으로)
+                    c = c + direction * step_size / 10**k7
+
+                    # 충분히 정확하면 종료
+                    if abs(temp[k1]) <= 1e-1:
+                        break
+
+                    # 너무 많은 반복에도 수렴하지 않으면 가장 좋은 해 사용
+                    if k1 > 500:
+                        best_idx = np.argmin(np.abs(temp[2 : k1 + 1])) + 2
+                        c_best = c - (k1 - best_idx) * direction * step_size / 10**k7
+                        c = c_best
+                        st.write(f"경고: 100회 반복 후 최적해 선택. P={temp[best_idx]}")
+                        break
+
+                    # 스텝 크기가 너무 작아지면 종료
+                    if k7 > 6:
+                        st.write(f"정보: 정밀도 한계에 도달. 마지막 P={temp[k1]}")
+                        break
+            else:
+                # 기존 코드 (Pnn != 0인 경우)
+                for k1 in np.arange(2, 1000):
+                    bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
+                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+
+                    temp[k1] = Pnn - P
+                    sgn1 = np.sign(temp[k1 - 1])
+                    sgn2 = np.sign(temp[k1])
+                    sgn = sgn1 * sgn2
+
+                    if sgn == -1:
+                        k7 = k7 + 1
+
+                    c = c + sgn2 * 100 / 10**k7
+
+                    if abs(temp[k1]) <= 1e-1:
+                        break
         cc[z1] = c
         Mn[z1] = M
         Pn[z1] = Pnn
@@ -405,7 +467,7 @@ def Cal(In, Reinforcement_Type):
     if 'Rectangle' in Section_Type:
         [PM.A1, PM.A2] = [A1, A2]
     PM.Ag = Ag
-    PM.Ast = Ast
+    PM.Ast_total = Ast_total
     PM.nst = nst
     PM.dsi = dsi
     PM.rho = rho
@@ -437,10 +499,10 @@ def Cal(In, Reinforcement_Type):
     return PM
 
 
-def ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D):
+def ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D):
     t = np.arccos(1 - 2 * alp * beta1 * gamma)
     if t < 0 or t > np.pi:
-        print('ACI440_Circle theta', t)
+        st.wr('ACI440_Circle theta', t)
     Cc = 0.85 * fck * (t - np.sin(t) * np.cos(t)) * D**2 / 4
     Mc = 0.85 * fck * (np.sin(t)) ** 3 * D**3 / 12
 
@@ -451,12 +513,12 @@ def ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast, D):
         tt = 1
     t = np.arccos(tt)
     if t < 0 or t > np.pi:
-        print('ACI440_Circle theta', t)
+        st.wr('ACI440_Circle theta', t)
     if np.iscomplex(t) or np.abs(t - np.pi) < 1e-2:  # if np.abs(t - np.pi) < 1e-2:  T = 0;  Mt = 0
         [T, Mt] = [0, 0]
     else:
-        T = (np.pi * np.cos(t) - t * np.cos(t) + np.sin(t)) / (np.pi * (1 + np.cos(t))) * (1 - alp) / alp * ep_cu * Ef * np.sum(Ast)
-        Mt = (np.pi - t + np.sin(t) * np.cos(t)) / (2 * np.pi * (1 + np.cos(t))) * (1 - alp) / alp * (gamma - 1 / 2) * ep_cu * Ef * np.sum(Ast) * D
+        T = (np.pi * np.cos(t) - t * np.cos(t) + np.sin(t)) / (np.pi * (1 + np.cos(t))) * (1 - alp) / alp * ep_cu * Ef * np.sum(Ast_total)
+        Mt = (np.pi - t + np.sin(t) * np.cos(t)) / (2 * np.pi * (1 + np.cos(t))) * (1 - alp) / alp * (gamma - 1 / 2) * ep_cu * Ef * np.sum(Ast_total) * D
 
     [P, M] = [(Cc - T) / 1e3, (Mc + Mt) / 1e6]
     return P, M
@@ -480,16 +542,6 @@ def RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, n
         [hD, b, h] = bhD
         Ac = a * b if a < h else h * b
         y_bar = (h - a) / 2
-    if 'Circle' in Section_Type:
-        [hD, D] = bhD
-        if a <= D / 2:
-            t = np.arccos((D / 2 - a) / (D / 2))
-        elif a <= D:
-            t = np.pi - np.arccos((a - D / 2) / (D / 2))
-        else:
-            t = np.pi  # a가 D보다 큰 경우 원으로 한정하기 위해서
-        Ac = D**2 / 4 * (t - np.sin(t) * np.cos(t))
-        y_bar = (D * np.sin(t)) ** 3 / (12 * Ac)
 
     [Cc, M] = [eta * (0.85 * fck) * Ac / 1e3, 0]
     for L in range(Layer):
@@ -507,11 +559,6 @@ def RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, n
                     Fsi[L, i] = Asi[L, i] * (fsi[L, i] - eta * 0.85 * fck) / 1e3  # 압축 철근  -0.85*fck
                 elif c < dsi[L, i]:
                     Fsi[L, i] = Asi[L, i] * fsi[L, i] / 1e3  #! 인장 철근 (c로 판단) ccccc
-            if 'FRP' in Reinforcement_Type:
-                if c >= dsi[L, i]:
-                    Fsi[L, i] = 0
-                elif c < dsi[L, i]:
-                    Fsi[L, i] = Asi[L, i] * fsi[L, i] / 1e3  # 인장 FRP만 계산 (c로 판단)
             M = M + Fsi[L, i] * (hD / 2 - dsi[L, i])
 
     [P, M] = [np.sum(Fsi) + Cc, (M + Cc * y_bar) / 1e3]  # Mc =  Cc*y_bar
