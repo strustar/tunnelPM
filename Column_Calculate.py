@@ -16,7 +16,16 @@ def Cal(In, Reinforcement_Type):
     PM_Type = In.PM_Type
 
     [be, height, D] = [In.be, In.height, In.D]
-    [fck, fy, f_fu, Ec, Es, Ef, Es_hollow, fy_hollow] = [In.fck, In.fy, In.f_fu, In.Ec, In.Es, In.Ef, In.Es_hollow, In.fy_hollow]
+    [fck, fy, f_fu, Ec, Es, Ef, Es_hollow, fy_hollow] = [
+        In.fck,
+        In.fy,
+        In.f_fu,
+        In.Ec,
+        In.Es,
+        In.Ef,
+        In.Es_hollow,
+        In.fy_hollow,
+    ]
     [Layer, dia, dc, nh, nb, nD, sb, dia1, dc1] = [In.Layer, In.dia, In.dc, In.nh, In.nb, In.nD, In.sb, In.dia1, In.dc1]
     # Input Data
     [ep_y, ep_fu, ep_y_hollow] = [fy / Es, f_fu / Ef, fy_hollow / Es_hollow]
@@ -65,7 +74,13 @@ def Cal(In, Reinforcement_Type):
     ###* Coefficient ###
 
     ###* Preparation for Calculation ###
-    [nst, nst1, ni, Ast, Ast1] = [np.zeros(Layer), np.zeros(Layer), np.zeros(Layer), [np.pi * d**2 / 4 for d in dia], [np.pi * d**2 / 4 for d in dia1]]
+    [nst, nst1, ni, Ast, Ast1] = [
+        np.zeros(Layer),
+        np.zeros(Layer),
+        np.zeros(Layer),
+        [np.pi * d**2 / 4 for d in dia],
+        [np.pi * d**2 / 4 for d in dia1],
+    ]
     if 'hollow' in Reinforcement_Type:
         Ast = [a / 2 for a in Ast]  ## / 2 : 중공철근 !!!
         Ast1 = [a / 2 for a in Ast1]  ## / 2 : 중공철근 !!!
@@ -111,13 +126,11 @@ def Cal(In, Reinforcement_Type):
     z1 = 1 - 1
     cc[z1] = np.inf
     Mn[z1] = 0
-    Rein = 0 if 'FRP' in Reinforcement_Type else fy * np.sum(Ast_total)
+    Rein = Es_hollow * ep_cu * np.sum(Ast_total) if 'hollow' in Reinforcement_Type else fy * np.sum(Ast_total)
     Pn[z1] = (eta * 0.85 * fck * (Ag - np.sum(Ast_total)) + Rein) / 1e3
-    if ('FRP' in Reinforcement_Type) and ('ACI 440.1' in FRP_Code):
-        Pn[z1] = 0.85 * fck * Ag / 1e3
     ee[z1] = Mn[z1] / Pn[z1] * 1e3
     ep_s[z1, 0:2] = ep_cu
-    fs[z1, 0:2] = fy
+    fs[z1, 0:2] = Es_hollow * ep_cu if 'hollow' in Reinforcement_Type else fy
     ###* Calculation Point A(1-1) : Pure Comppression (e = 0, c = inf, Mn = 0) ###
 
     ###* Calculation Point G(7-1) : Pure Tension(e = 0, c = inf, Mn = 0)
@@ -188,7 +201,25 @@ def Cal(In, Reinforcement_Type):
                 c = d * ep_cu / (ep_cu + eps)
                 if 'Rectangle' in Section_Type:
                     bhD = [hD, be, height]
-                [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+                [P, M] = RC_and_AASHTO(
+                    Section_Type,
+                    Reinforcement_Type,
+                    beta1,
+                    c,
+                    eta,
+                    fck,
+                    Layer,
+                    ni,
+                    ep_si,
+                    ep_cu,
+                    dsi,
+                    fsi,
+                    Es,
+                    fy,
+                    Fsi,
+                    Asi,
+                    *bhD,
+                )
 
             if zz == 1:
                 cc[z1] = c
@@ -307,7 +338,25 @@ def Cal(In, Reinforcement_Type):
 
                 # 첫 번째 값 계산
                 bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                [P_init, M_init] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+                [P_init, M_init] = RC_and_AASHTO(
+                    Section_Type,
+                    Reinforcement_Type,
+                    beta1,
+                    c,
+                    eta,
+                    fck,
+                    Layer,
+                    ni,
+                    ep_si,
+                    ep_cu,
+                    dsi,
+                    fsi,
+                    Es,
+                    fy,
+                    Fsi,
+                    Asi,
+                    *bhD,
+                )
                 temp[1] = P_init  # Pnn=0이므로 P_init 자체가 오차
 
                 # 방향 결정
@@ -318,7 +367,25 @@ def Cal(In, Reinforcement_Type):
 
                 for k1 in np.arange(2, 1000):
                     bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+                    [P, M] = RC_and_AASHTO(
+                        Section_Type,
+                        Reinforcement_Type,
+                        beta1,
+                        c,
+                        eta,
+                        fck,
+                        Layer,
+                        ni,
+                        ep_si,
+                        ep_cu,
+                        dsi,
+                        fsi,
+                        Es,
+                        fy,
+                        Fsi,
+                        Asi,
+                        *bhD,
+                    )
 
                     temp[k1] = P  # Pnn=0이므로 P 자체가 오차
 
@@ -355,7 +422,25 @@ def Cal(In, Reinforcement_Type):
                 # 기존 코드 (Pnn != 0인 경우)
                 for k1 in np.arange(2, 1000):
                     bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
+                    [P, M] = RC_and_AASHTO(
+                        Section_Type,
+                        Reinforcement_Type,
+                        beta1,
+                        c,
+                        eta,
+                        fck,
+                        Layer,
+                        ni,
+                        ep_si,
+                        ep_cu,
+                        dsi,
+                        fsi,
+                        Es,
+                        fy,
+                        Fsi,
+                        Asi,
+                        *bhD,
+                    )
 
                     temp[k1] = Pnn - P
                     sgn1 = np.sign(temp[k1 - 1])
@@ -422,7 +507,9 @@ def Cal(In, Reinforcement_Type):
                     ph = 0.85
                     ph_Status = 'Tension Controlled'
 
-            if 'FRP' in Reinforcement_Type:  #! FRP : AASHTO & ACI  (ACI 440.1R**은 약간 다른데 거의 비슷해서 여기에 포함)
+            if (
+                'FRP' in Reinforcement_Type
+            ):  #! FRP : AASHTO & ACI  (ACI 440.1R**은 약간 다른데 거의 비슷해서 여기에 포함)
                 if 'AASHTO' in FRP_Code:
                     a1 = 1.55
                     a2 = 1
@@ -517,8 +604,26 @@ def ACI440_Circle(alp, beta1, gamma, fck, ep_cu, Ef, Ast_total, D):
     if np.iscomplex(t) or np.abs(t - np.pi) < 1e-2:  # if np.abs(t - np.pi) < 1e-2:  T = 0;  Mt = 0
         [T, Mt] = [0, 0]
     else:
-        T = (np.pi * np.cos(t) - t * np.cos(t) + np.sin(t)) / (np.pi * (1 + np.cos(t))) * (1 - alp) / alp * ep_cu * Ef * np.sum(Ast_total)
-        Mt = (np.pi - t + np.sin(t) * np.cos(t)) / (2 * np.pi * (1 + np.cos(t))) * (1 - alp) / alp * (gamma - 1 / 2) * ep_cu * Ef * np.sum(Ast_total) * D
+        T = (
+            (np.pi * np.cos(t) - t * np.cos(t) + np.sin(t))
+            / (np.pi * (1 + np.cos(t)))
+            * (1 - alp)
+            / alp
+            * ep_cu
+            * Ef
+            * np.sum(Ast_total)
+        )
+        Mt = (
+            (np.pi - t + np.sin(t) * np.cos(t))
+            / (2 * np.pi * (1 + np.cos(t)))
+            * (1 - alp)
+            / alp
+            * (gamma - 1 / 2)
+            * ep_cu
+            * Ef
+            * np.sum(Ast_total)
+            * D
+        )
 
     [P, M] = [(Cc - T) / 1e3, (Mc + Mt) / 1e6]
     return P, M
@@ -536,7 +641,9 @@ def ACI440_Rectangle(alp, beta1, gamma, fck, ep_cu, Ef, A1, A2, b, h):
     return P, M
 
 
-def RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD):
+def RC_and_AASHTO(
+    Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD
+):
     a = beta1 * c
     if 'Rectangle' in Section_Type:
         [hD, b, h] = bhD
