@@ -1,5 +1,5 @@
 def Excel(In, R, F):
-    import os, time, subprocess#, pythoncom
+    import os, time#, subprocess#, pythoncom
     # from win32com.client import GetActiveObject, DispatchEx
     import pandas as pd
     import numpy as np
@@ -19,8 +19,8 @@ def Excel(In, R, F):
     #         break
     # excel.Quit()
     # pythoncom.CoUninitialize()
-    subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
+    #                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # time.sleep(1)
 
     # ─── 2) 데이터 처리 함수 ────────────────────────────
