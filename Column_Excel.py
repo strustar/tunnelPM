@@ -174,5 +174,14 @@ def Excel(In, R, F):
         Column_Chart.create_pm_chart_excel(wb, In, R, F)
 
     # ─── 5) 엑셀 파일 열기 ────────────────────────────
-    os.startfile(path)
+    # os.startfile(path)
+    import streamlit as st
+    with open(path, "rb") as file:
+        st.download_button(
+            label="📥 엑셀 파일 다운로드",
+            data=file,
+            file_name=path.split("/")[-1],
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
     
