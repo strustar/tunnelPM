@@ -1,24 +1,24 @@
 def Excel(In, R, F):
-    import os, time, subprocess, pythoncom
-    from win32com.client import GetActiveObject, DispatchEx
+    import os, time, subprocess#, pythoncom
+    # from win32com.client import GetActiveObject, DispatchEx
     import pandas as pd
     import numpy as np
 
     path = os.path.abspath("a.xlsx")
 
-    # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
-    pythoncom.CoInitialize()
-    try: 
-        excel = GetActiveObject("Excel.Application")
-    except: 
-        excel = DispatchEx("Excel.Application")
-    excel.Visible = False
-    for wb in list(excel.Workbooks):
-        if os.path.normcase(wb.FullName) == os.path.normcase(path):
-            wb.Close(SaveChanges=False)
-            break
-    excel.Quit()
-    pythoncom.CoUninitialize()
+    # # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
+    # pythoncom.CoInitialize()
+    # try: 
+    #     excel = GetActiveObject("Excel.Application")
+    # except: 
+    #     excel = DispatchEx("Excel.Application")
+    # excel.Visible = False
+    # for wb in list(excel.Workbooks):
+    #     if os.path.normcase(wb.FullName) == os.path.normcase(path):
+    #         wb.Close(SaveChanges=False)
+    #         break
+    # excel.Quit()
+    # pythoncom.CoUninitialize()
     subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # time.sleep(1)
