@@ -31,8 +31,6 @@ def Cal(In, Reinforcement_Type):
     [ep_y, ep_fu, ep_y_hollow] = [fy / Es, f_fu / Ef, fy_hollow / Es_hollow]
     if 'hollow' in Reinforcement_Type:
         [Es, fy, ep_y] = [Es_hollow, fy_hollow, ep_y_hollow]
-    if 'FRP' in Reinforcement_Type:
-        [Es, fy, ep_y] = [Ef, f_fu, ep_fu]
 
     ###* Coefficient ###
     if 'KDS-2021' in RC_Code and 'RC' in Reinforcement_Type:
@@ -102,7 +100,7 @@ def Cal(In, Reinforcement_Type):
         A2 = 0
 
     dsi, Asi = np.zeros((Layer, np.max(ni))), np.zeros((Layer, np.max(ni)))  # initial_rotation = 0 for Circle Section
-    dsi[0, :2] = [dc1[0], height - dc1[0]]
+    dsi[0, :2] = [dc1[0], height - dc[0]]
     # nb = be / sb[0]
     Asi[0, :2] = [Ast1[0] * nst1[0], Ast[0] * nst[0]]
 
@@ -550,6 +548,7 @@ def Cal(In, Reinforcement_Type):
         In.nhD = nD
     PM.ep_y, PM.ep_fu, PM.ep_cu = ep_y, ep_fu, ep_cu
     PM.beta1, PM.eta, PM.alpha, PM.phi0 = beta1, eta, alpha, phi0
+    # st.write(f"PM.beta1: {PM.beta1}", f"PM.eta: {PM.eta}", f"PM.alpha: {PM.alpha}", f"PM.phi0: {PM.phi0}", dsi)
 
     if 'Rectangle' in Section_Type:
         [PM.A1, PM.A2] = [A1, A2]

@@ -1,5 +1,5 @@
 import streamlit as st
-import Column_Sidebar, Column_Calculate, Column_Result
+import Column_Sidebar, Column_Calculate, Column_Result, Column_Excel
 
 import os, sys, importlib
 
@@ -33,6 +33,7 @@ F = Column_Calculate.Cal(In, 'RC_hollow')  # 중공철근
 
 Column_Result.Fig(In, R, F)
 
+Column_Excel.Excel(In, R, F)
 
 # import sys
 # sys.exit()

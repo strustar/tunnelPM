@@ -556,6 +556,84 @@ def PM_plot(In, R, F, loc, selected_row):
                 txt = f'e<sub>b</sub> = {val:,.1f} mm'
             annotation(fig, f * x, f * y, color, txt, 'center', 'middle', bgcolor='yellow', size=size17)
 
+        ### 기둥 강도 검토 ======================================================
+        def find_intersection(curve_x, curve_y, M1, P1):
+            # 1) 기본 검증
+            if M1 == 0:
+                return None, None
+            k = P1 / M1  # 직선 기울기
+
+            # 2) 선분별 교차 검사
+            for j in range(len(curve_x) - 1):
+                x0, y0 = curve_x[j],   curve_y[j]
+                x1, y1 = curve_x[j+1], curve_y[j+1]
+                f0, f1 = y0 - k * x0,   y1 - k * x1
+
+                # 2-1) 선분 시작점이 교점일 때
+                if f0 == 0:
+                    return x0, y0
+
+                # 2-2) 구간 내부에 교차점이 있을 때
+                if f0 * f1 < 0:
+                    t = f0 / (f0 - f1)
+                    xi = x0 + t * (x1 - x0)
+                    yi = y0 + t * (y1 - y0)
+                    return xi, yi
+            # 3) 교점 미발견
+            return None, None
+
+        # 1) 곡선 배열 초기화    
+        curve_x = np.array(F.ZMd) if 'hollow' in loc else np.array(R.ZMd)   # 반드시 길이 97 배열
+        curve_y = np.array(F.ZPd) if 'hollow' in loc else np.array(R.ZPd)
+                
+        for i in range(3):
+            # 2) 각 점에 대해 교점 계산
+            M1, P1 = In.Mu[i], In.Pu[i]
+            x_int, y_int = find_intersection(curve_x, curve_y, M1, P1)
+            color = ['red', 'green', 'blue']
+            
+            if 'hollow' not in loc:
+                In.safe_RC[i] = np.sqrt(x_int**2 + y_int**2) / np.sqrt(M1**2 + P1**2)
+                In.Pd_RC[i] = y_int
+                In.Md_RC[i] = x_int
+            else:
+                safety = np.sqrt(x_int**2 + y_int**2) / np.sqrt(M1**2 + P1**2)
+                In.safe_FRP[i] = safety
+                In.Pd_FRP[i] = y_int
+                In.Md_FRP[i] = x_int
+                colors = ['red', 'green', 'blue']
+                In.placeholder[i].write(f":{colors[i]}[{In.safe_RC[i]:.2f} / {safety:.2f}]")
+                # if i == 0:
+                #     In.placeholder[i].write(f":red[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
+                # elif i == 1:
+                #     In.placeholder[i].write(f":green[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
+                # elif i == 2:
+                #     In.placeholder[i].write(f":blue[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
+            
+            # if x_int is None:
+            #     st.info(f"{i}번째 점 교점 미발견: 데이터·기울기 확인 필요")
+            # else:
+            #     st.info(f"{i}번째 점 교점: x={x_int:.2f}, y={y_int:.2f}")
+            if In.check:
+                fig.add_trace(
+                    go.Scatter(x=[0, x_int], y=[0, y_int], line=dict(width=3, color=color[i]), showlegend=False, name='delete_hover')
+                )
+
+            num_symbols = ["①", "②", "③"]
+            bgcolor = ['rgba(255,0,0,0.5)', 'rgba(0,255,0,0.8)', 'rgba(0,0,255,0.5)']
+            
+            [x, y] = [In.Mu[i], In.Pu[i]]
+            # fig.add_trace(
+            #     go.Scatter(x=[x], y=[y], mode='markers',
+            #         marker=dict(symbol='diamond', size=size8, color=color[i], line=dict(width=2, color='black')),
+            #         showlegend=False,
+            #         name='delete_hover',
+            #         )
+            #     )
+            annotation(fig, x, y, 'black', num_symbols[i], 'center', 'middle', bgcolor=bgcolor[i], size=size17)
+    
+        ### 기둥 강도 검토 ======================================================
+
     # A(0), B(1), C(2), D(3), E(4), F(5), G(6) 점 찍기
     for i in [1, 2]:  # 1 : Pn-Mn,  2 : Pd-Md
         for z1 in range(len(PM_x7)):
@@ -617,10 +695,7 @@ def PM_plot(In, R, F, loc, selected_row):
             if z1 == 7 - 1:
                 color = 'darkred'
             fig.add_trace(
-                go.Scatter(
-                    x=[x1],
-                    y=[y1],
-                    mode='markers',
+                go.Scatter(x=[x1], y=[y1], mode='markers',
                     marker=dict(size=size8, color=color, line=dict(width=2, color='black')),
                     showlegend=False,
                     name='delete_hover',
@@ -1020,4 +1095,5 @@ def Column(In, R, F, loc, selected_row):
     fig.update_yaxes(range=[0, ylim])
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)
+
     return fig

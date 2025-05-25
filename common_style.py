@@ -36,12 +36,13 @@ def input_box(In):
 
         [data-testid=stSidebar] {{
             padding: 5px;
-            margin-top: -80px !important;
+            # padding-top: 40px;
+            margin-top: -40px !important;
             background-color: azure;
             border: 3px dashed purple;
             height: 110% !important;
-            max-width: 600px !important;  /* 사이드바의 최대 크기를 조절합니다 */
-            width: 100% !important;  /* 이렇게 하면 사이드 바 폭을 고정할수 있음. */
+            max-width: 600px;  /* 사이드바의 최대 크기를 조절합니다 */
+            # width: 100% !important;  /* 이렇게 하면 사이드 바 폭을 고정할수 있음. */
         }}
         input[type="number"] {{
             margin-top: 5px;
@@ -131,46 +132,3 @@ def input_box(In):
     </style> """,
         unsafe_allow_html=True,
     )
-
-
-#! 워터마크 이미지, 투명도 및 크기를 설정하는 함수
-# @st.cache_resource
-def watermark(In):
-    if '0811' not in In.watermark:
-        st.markdown(
-            """
-            <style>
-                .watermark-container {
-                    position: fixed;                    
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-17%, -50%);
-                    z-index: 9999;  /* 다른 요소들보다 상위에 위치하도록 설정 */
-                    pointer-events: none;  /* 워터마크가 클릭 이벤트를 방해하지 않도록 설정 */
-                }
-                .watermark-container img {
-                    max-width: 100%;  /* 이미지의 최대 폭을 화면 너비에 맞춤 */
-                    height: auto;  /* 이미지 높이를 자동으로 조절하여 비율을 유지 */
-                    opacity: 0.15;  /* 이미지에만 투명도 적용 */
-                }
-                    
-                @media print {
-                    .watermark-container {
-                        width: 100%; /* 인쇄 시 워터마크 이미지의 폭 */
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);                        
-                        position: fixed; /* 인쇄 시 위치 고정 */
-                    }
-                    .watermark-container img {
-                        max-width: 100%;  /* 인쇄 시 이미지 폭을 부모 요소의 폭에 맞춤 */
-                        opacity: 0.25;  /* 인쇄 시 이미지에만 투명도 조정 */
-                    }
-                }
-            </style>
-            <div class="watermark-container">
-                <img src="https://github.com/strustar/Support/blob/main/Images/watermark.png?raw=true">                
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )

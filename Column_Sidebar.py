@@ -58,6 +58,64 @@ def Sidebar():
     # sb.write('###### $\,$', ':blue[*워터마크를 제거 하시려면 메일로 문의주세요]')
 
     sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
+    col = sb.columns([1, 1])
+    with col[0]:
+        st.write(h4, ':green[✤ 기둥 강도 검토]')
+    with col[1]:
+        In.check = st.checkbox(':green[선 보이기]', value=True)
+
+    for attr in ['Pu', 'Mu', 'Vu', 'safe_RC', 'safe_FRP', 'Pd_RC', 'Pd_FRP', 'Md_RC', 'Md_FRP']:
+        setattr(In, attr, [0.0] * 3)
+
+    spec = {                 # attr : (tex, unit, defaults, step)
+        "Pu": ("P_u", "[kN]",  [2000.0, 3000.0, 6000.0], 200.0),
+        "Mu": ("M_u", "[kN·m]",[220.0,  250.0,  300.0],  20.0),
+        "안젼률": ("안젼률", "",  [7000.0, 7500.0, 8000.0], 200.0),
+    }
+    # Vu placeholder 저장용 리스트
+    In.placeholder = [None] * 3
+
+    # 헤더 행 생성
+    header_cols = sb.columns([0.5, 1, 1, 1])
+    # 1열: 번호 칸 비워두기
+    header_cols[0].write("")  
+    # 2~4열: Pu, Mu, Vu 라벨 출력
+    for col, (attr, (tex, unit, _, _)) in zip(header_cols[1:], spec.items()):
+        col.markdown(rf"$\bm{{\small{{{tex}}}}}$ {unit}")
+
+    # 본문: ①~③ 넘버링 + number_input
+    num_symbols = ["①", "②", "③"]
+    for i in range(3):
+        cols = sb.columns([0.5, 1, 1, 1])
+        
+        # 1열: 넘버링
+        cols[0].markdown(
+            f"<div style='text-align:center; font-size:1.4em;'>{num_symbols[i]}</div>",
+            unsafe_allow_html=True
+        )
+        
+        # 2~4열: Pu, Mu 입력 + Vu 빈공간
+        for col, (attr, (_, unit, defaults, step)) in zip(cols[1:], spec.items()):
+            if attr == "안젼률":
+                # Vu 칸에는 placeholder로 빈 공간 만들기
+                In.placeholder[i] = col.empty()
+            else:
+                val = col.number_input(
+                    label="",
+                    min_value=10.0,
+                    value=defaults[i],
+                    step=step,
+                    format="%.0f",
+                    key=f"{attr}{i+1}",
+                    label_visibility="collapsed"
+                )
+                getattr(In, attr)[i] = val
+    
+
+    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
+    sb.write(h4, ':green[✤ 전단 강도 및 사용성 검토]')
+
+    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
     sb.write(h4, ':green[✤ Design Method]')
     In.Design_Method = sb.radio(
         h5 + '￭ Design Method',
