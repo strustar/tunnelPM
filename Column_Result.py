@@ -556,7 +556,7 @@ def PM_plot(In, R, F, loc, selected_row):
                 txt = f'e<sub>b</sub> = {val:,.1f} mm'
             annotation(fig, f * x, f * y, color, txt, 'center', 'middle', bgcolor='yellow', size=size17)
 
-        ### 기둥 강도 검토 ======================================================
+        ### 기둥 강도 검토 ====================================================== 
         def find_intersection(curve_x, curve_y, M1, P1):
             # 1) 기본 검증
             if M1 == 0:
@@ -586,11 +586,11 @@ def PM_plot(In, R, F, loc, selected_row):
         curve_x = np.array(F.ZMd) if 'hollow' in loc else np.array(R.ZMd)   # 반드시 길이 97 배열
         curve_y = np.array(F.ZPd) if 'hollow' in loc else np.array(R.ZPd)
                 
-        for i in range(3):
+        for i in range(len(In.Mu)):
             # 2) 각 점에 대해 교점 계산
             M1, P1 = In.Mu[i], In.Pu[i]
             x_int, y_int = find_intersection(curve_x, curve_y, M1, P1)
-            color = ['red', 'green', 'blue']
+            color = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'darkred', 'lightgreen', 'lightblue', 'black']
             
             if 'hollow' not in loc:
                 In.safe_RC[i] = np.sqrt(x_int**2 + y_int**2) / np.sqrt(M1**2 + P1**2)
@@ -601,8 +601,9 @@ def PM_plot(In, R, F, loc, selected_row):
                 In.safe_FRP[i] = safety
                 In.Pd_FRP[i] = y_int
                 In.Md_FRP[i] = x_int
-                colors = ['red', 'green', 'blue']
-                In.placeholder[i].write(f":{colors[i]}[{In.safe_RC[i]:.2f} / {safety:.2f}]")
+                colors = ['red', 'green', 'blue', 'red', 'green', 'blue', 'red', 'green', 'blue', 'black']
+                In.placeholder_strength[i].write(f":{colors[i]}[{In.safe_RC[i]:.2f} / {safety:.2f}]")
+                
                 # if i == 0:
                 #     In.placeholder[i].write(f":red[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
                 # elif i == 1:
@@ -619,8 +620,8 @@ def PM_plot(In, R, F, loc, selected_row):
                     go.Scatter(x=[0, x_int], y=[0, y_int], line=dict(width=3, color=color[i]), showlegend=False, name='delete_hover')
                 )
 
-            num_symbols = ["①", "②", "③"]
-            bgcolor = ['rgba(255,0,0,0.5)', 'rgba(0,255,0,0.8)', 'rgba(0,0,255,0.5)']
+            num_symbols = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]
+            bgcolor = ['rgba(255,0,0,0.5)', 'rgba(0,255,0,0.8)', 'rgba(0,0,255,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)', 'rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,255,0,0.5)']
             
             [x, y] = [In.Mu[i], In.Pu[i]]
             # fig.add_trace(

@@ -1,145 +1,93 @@
 import streamlit as st
 
-
 class In:
-    pass
-
-
-In.ok = ':blue[∴ OK] (🆗✅)'
-In.ng = ':red[∴ NG] (❌)'
-In.col_span_ref = [1, 1]
-In.col_span_okng = [5, 1]  # 근거, OK(NG) 등 2열 배열 간격 설정
-In.max_width = '1800px'
-
-In.font_h1 = '32px'
-In.font_h2 = '28px'
-In.font_h3 = '26px'
-In.font_h4 = '24px'
-In.font_h5 = '20px'
-In.font_h6 = '16px'
-In.h2 = '## '
-In.h3 = '### '
-In.h4 = '#### '
-In.h5 = '##### '
-In.h6 = '###### '
-In.s1 = In.h5 + '$\quad$'
-In.s2 = In.h5 + '$\qquad$'
-In.s3 = In.h5 + '$\quad \qquad$'
+    ok, ng = ':blue[∴ OK] (🆗✅)', ':red[∴ NG] (❌)'
+    col_span_ref, col_span_okng, max_width = [1,1], [5,1], '1800px'
+    font_h1, font_h2, font_h3, font_h4, font_h5, font_h6 = '32px', '28px', '26px', '24px', '20px', '16px'
+    h2, h3, h4, h5, h6 = '## ', '### ', '#### ', '##### ', '###### '
+    s1, s2, s3 = '##### $\\quad$', '##### $\\qquad$', '##### $\\quad \\qquad$'
 
 In.border1 = (
-    f'<hr style="border-top: 2px solid green; margin-top:30px; margin-bottom:30px; margin-right: -30px">'  # 1줄
+    f'<hr style="border-top: 2px solid green; margin-top:30px; margin-bottom:30px; margin-right: -30px">'
 )
 In.border2 = (
-    f'<hr style="border-top: 5px double green; margin-top: 0px; margin-bottom:30px; margin-right: -30px">'  # 2줄
+    f'<hr style="border-top: 5px double green; margin-top: 0px; margin-bottom:30px; margin-right: -30px">'
 )
 
+def initialize_material_properties():
+    """재료 속성 세션 상태 초기화"""
+    defaults = {
+        'fck': 27.0,
+        'fy': 400.0,
+        'Es': 200.0,
+        'f_fu': 800.0,
+        'Ef': 200.0,
+        'be': 1000.0,
+        'height': 300.0,
+        'sb': 150.0,
+        'dia': 22.2,
+        'dc': 60.0,
+        'dia1': 22.2,
+        'dc1': 60.0,
+    }
+    
+    for key, default_value in defaults.items():
+        if f'material_{key}' not in st.session_state:
+            st.session_state[f'material_{key}'] = default_value
+
+def create_material_input(label, key, min_val=10.0, step=1.0, format_str='%f', **kwargs):
+    """재료 속성 입력 필드 생성 (세션 상태 관리)"""
+    session_key = f'material_{key}'
+    
+    value = st.number_input(
+        label,
+        min_value=min_val,
+        value=st.session_state.get(session_key, kwargs.get('default', 10.0)),
+        step=step,
+        format=format_str,
+        key=f'input_{key}',
+        **{k: v for k, v in kwargs.items() if k != 'default'}
+    )
+    
+    # 세션 상태 업데이트
+    st.session_state[session_key] = value
+    return value
 
 def Sidebar():
     sb = st.sidebar
     side_border = '<hr style="border-top: 2px solid purple; margin-top:15px; margin-bottom:15px;">'
     h5 = In.h5
-    h4 = h5
-
-    html_code = """
-        <div style="background-color: lightblue; margin-top: 10px; padding: 10px; padding-top: 20px; padding-bottom:0px; font-weight:bold; border: 2px solid black; border-radius: 20px;">
-            <h5>문의 사항은 언제든지 아래 이메일로 문의 주세요^^</h5>
-            <h5>📧📬 : <a href='mailto:strustar@konyang.ac.kr' style='color: blue;'>strustar@konyang.ac.kr</a> (건양대 손병직)</h5>
-        </div>
-    """
-    sb.markdown(html_code, unsafe_allow_html=True)
-
-    sb.write('')
-    sb.write('## ', ':blue[[Information : 입력값 📘]]')
-    sb.write('')
-    # sb.write(h4, '✤ 워터마크(watermark) 제거*')
-    # col = sb.columns(2)
-    # with col[0]:
-    #     In.watermark = st.text_input(h5 + '✦ 숨김', type='password', placeholder='password 입력하세요' , label_visibility='collapsed')  # , type='password'
-    # sb.write('###### $\,$', ':blue[*워터마크를 제거 하시려면 메일로 문의주세요]')
-
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
-    col = sb.columns([1, 1])
-    with col[0]:
-        st.write(h4, ':green[✤ 기둥 강도 검토]')
-    with col[1]:
-        In.check = st.checkbox(':green[선 보이기]', value=True)
-
-    for attr in ['Pu', 'Mu', 'Vu', 'safe_RC', 'safe_FRP', 'Pd_RC', 'Pd_FRP', 'Md_RC', 'Md_FRP']:
-        setattr(In, attr, [0.0] * 3)
-
-    spec = {                 # attr : (tex, unit, defaults, step)
-        "Pu": ("P_u", "[kN]",  [2000.0, 3000.0, 6000.0], 200.0),
-        "Mu": ("M_u", "[kN·m]",[220.0,  250.0,  300.0],  20.0),
-        "안젼률": ("안젼률", "",  [7000.0, 7500.0, 8000.0], 200.0),
-    }
-    # Vu placeholder 저장용 리스트
-    In.placeholder = [None] * 3
-
-    # 헤더 행 생성
-    header_cols = sb.columns([0.5, 1, 1, 1])
-    # 1열: 번호 칸 비워두기
-    header_cols[0].write("")  
-    # 2~4열: Pu, Mu, Vu 라벨 출력
-    for col, (attr, (tex, unit, _, _)) in zip(header_cols[1:], spec.items()):
-        col.markdown(rf"$\bm{{\small{{{tex}}}}}$ {unit}")
-
-    # 본문: ①~③ 넘버링 + number_input
-    num_symbols = ["①", "②", "③"]
-    for i in range(3):
-        cols = sb.columns([0.5, 1, 1, 1])
-        
-        # 1열: 넘버링
-        cols[0].markdown(
-            f"<div style='text-align:center; font-size:1.4em;'>{num_symbols[i]}</div>",
-            unsafe_allow_html=True
-        )
-        
-        # 2~4열: Pu, Mu 입력 + Vu 빈공간
-        for col, (attr, (_, unit, defaults, step)) in zip(cols[1:], spec.items()):
-            if attr == "안젼률":
-                # Vu 칸에는 placeholder로 빈 공간 만들기
-                In.placeholder[i] = col.empty()
-            else:
-                val = col.number_input(
-                    label="",
-                    min_value=10.0,
-                    value=defaults[i],
-                    step=step,
-                    format="%.0f",
-                    key=f"{attr}{i+1}",
-                    label_visibility="collapsed"
-                )
-                getattr(In, attr)[i] = val
+    h4 = "#### "
+    In.Design_Method = 'KDS-2021'
     
+    # 재료 속성 세션 상태 초기화
+    initialize_material_properties()
 
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
-    sb.write(h4, ':green[✤ 전단 강도 및 사용성 검토]')
+    sb.write('## ', ':blue[[Information : 입력값 📘]]')
 
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
-    sb.write(h4, ':green[✤ Design Method]')
-    In.Design_Method = sb.radio(
-        h5 + '￭ Design Method',
-        ('USD (Ultimate Strength Design)', 'LSD (Limit State Design)'),
-        key='Design_Method',
-        horizontal=True,
-        label_visibility='collapsed',
-    )
+    sb.markdown(side_border, unsafe_allow_html=True)
+    sb.write(h4, ':green[✤ Option]')
+    In.Option = sb.radio('Option', ('기둥 검토', '전단 검토', '사용성 검토'), horizontal=True, label_visibility='collapsed', index=0)   
 
-    # sb.write(h4, ':green[✤ Design Code]')
-    # col = sb.columns([1, 1.2], gap='medium')
-    # with col[0]:
-    #     In.RC_Code = st.selectbox(h5 + '￭ RC Code', ('KDS-2021', 'KCI-2012'), key='RC_Code')
-    # with col[1]:
-    #     In.FRP_Code = st.selectbox(h5 + '￭ FRP Code', ('AASHTO-2018', 'ACI 440.1R-06(15)', 'ACI 440.11-22'), key='FRP_Code')
+    # 동적 UI 섹션 (가장 먼저 배치)
+    from Column_Sidebar_Fcn import create_column_ui
+    create_column_ui(In, sb, side_border, h4)
+
+    # 고정 속성들 (세션 상태로 관리)
     In.RC_Code = 'KDS-2021'
     In.FRP_Code = 'AASHTO-2018'
 
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
+    sb.markdown(side_border, unsafe_allow_html=True)
+    
+    # Column Type & PM Diagram (세션 상태 자동 관리)
     col = sb.columns([1, 1.2])
     with col[0]:
         st.write(h4, ':green[✤ Column Type]')
         In.Column_Type = st.radio(
-            h5 + '￭ Section Type', ('Tied Column', 'Spiral Column'), key='Column_Type', label_visibility='collapsed'
+            h5 + '￭ Section Type', 
+            ('Tied Column', 'Spiral Column'), 
+            key='persistent_column_type', 
+            label_visibility='collapsed'
         )
     with col[1]:
         st.write(h4, ':green[✤ PM Diagram Option]')
@@ -148,145 +96,157 @@ def Sidebar():
             ('이형철근 \u00a0 vs. \u00a0 중공철근', 'Pₙ-Mₙ \u00a0 vs. \u00a0 ϕPₙ-ϕMₙ'),
             horizontal=True,
             label_visibility='collapsed',
-            key='PM_Type',
+            key='persistent_pm_type',
         )
 
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
+    sb.markdown(side_border, unsafe_allow_html=True)
+    
+    # Section Dimensions (세션 상태로 관리)
     sb.write(h4, ':green[✤ Section Dimensions]')
     In.Section_Type = 'Rectangle'
 
     col = sb.columns([1, 1])
     with col[0]:
-        In.be = st.number_input(
+        In.be = create_material_input(
             h5 + r'￭ $\bm{{\small{{b_e}} }}$ (단위폭) [mm]',
-            min_value=10.0,
-            value=1000.0,
+            'be',
+            min_val=10.0,
             step=10.0,
-            format='%f',
-            key='be',
+            default=1000.0
         )
     with col[1]:
-        In.height = st.number_input(
-            h5 + r'￭ $\bm{{\small{{h}} }}$ [mm]', min_value=10.0, value=300.0, step=10.0, format='%f', key='height'
+        In.height = create_material_input(
+            h5 + r'￭ $\bm{{\small{{h}} }}$ [mm]',
+            'height',
+            min_val=10.0,
+            step=10.0,
+            default=300.0
         )
+    
     In.D = 500
-    # with col[2]:
-    #     In.D = st.number_input(h5 + r'￭ $\bm{{\small{{D}} }}$ [mm]', min_value=10.0, value=600.0, step=10.0, format='%f', key='D', disabled=disabledC)
 
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
+    sb.markdown(side_border, unsafe_allow_html=True)
+    
+    # Material Properties (세션 상태로 관리)
     sb.write(h4, ':green[✤ Material Properties]')
     col = sb.columns(3, gap='medium')
+    
     with col[0]:
         st.write(h5, ':blue[✦ 콘크리트]')
-        In.fck = st.number_input(
-            h5 + r'$\bm{{\small{{f_{ck}}} }}$ [MPa]', min_value=10.0, value=40.0, step=1.0, format='%f', key='fck'
+        In.fck = create_material_input(
+            h5 + r'$\bm{{\small{{f_{ck}}} }}$ [MPa]',
+            'fck',
+            min_val=10.0,
+            step=1.0,
+            default=27.0
         )
+        
+        # Ec 계산 (의존적 값)
         Ec = 8500 * (In.fck + 4) ** (1 / 3) / 1e3
-        In.Ec = (
-            st.number_input(
-                h5 + r'$\bm{{\small{{E_{c}}} }}$ [GPa]',
-                min_value=10.0,
-                value=Ec,
-                step=1.0,
-                format='%.1f',
-                disabled=True,
-                key='Ec',
-            )
-            * 1e3
-        )
-    with col[1]:  # MPa로 변경 *1e3
+        In.Ec = st.number_input(
+            h5 + r'$\bm{{\small{{E_{c}}} }}$ [GPa]',
+            min_value=10.0,
+            value=Ec,
+            step=1.0,
+            format='%.1f',
+            disabled=True,
+            key='persistent_Ec',
+        ) * 1e3
+        
+    with col[1]:
         st.write(h5, ':blue[✦ 이형철근]')
-        In.fy = st.number_input(
-            h5 + r'$\bm{{\small{{f_{y}}} }}$ [MPa]', min_value=10.0, value=400.0, step=10.0, format='%f', key='fy'
+        In.fy = create_material_input(
+            h5 + r'$\bm{{\small{{f_{y}}} }}$ [MPa]',
+            'fy',
+            min_val=10.0,
+            step=10.0,
+            default=400.0
         )
-        In.Es = (
-            st.number_input(
-                h5 + r'$\bm{{\small{{E_{s}}} }}$ [GPa]', min_value=10.0, value=200.0, step=10.0, format='%f', key='Es'
-            )
-            * 1e3
-        )
+        In.Es = create_material_input(
+            h5 + r'$\bm{{\small{{E_{s}}} }}$ [GPa]',
+            'Es',
+            min_val=10.0,
+            step=10.0,
+            default=200.0
+        ) * 1e3
+        
     with col[2]:
         st.write(h5, ':blue[✦ 중공철근]')
-        In.f_fu = st.number_input(
-            h5 + r'$\bm{{\small{{f_{y}}} }}$ [MPa]', min_value=10.0, value=800.0, step=10.0, format='%f', key='f_fu'
+        In.f_fu = create_material_input(
+            h5 + r'$\bm{{\small{{f_{y}}} }}$ [MPa]',
+            'f_fu',
+            min_val=10.0,
+            step=10.0,
+            default=800.0
         )
-        In.Ef = (
-            st.number_input(
-                h5 + r'$\bm{{\small{{E_{s}}} }}$ [GPa]', min_value=10.0, value=200.0, step=10.0, format='%f', key='Ef'
-            )
-            * 1e3
-        )
+        In.Ef = create_material_input(
+            h5 + r'$\bm{{\small{{E_{s}}} }}$ [GPa]',
+            'Ef',
+            min_val=10.0,
+            step=10.0,
+            default=200.0
+        ) * 1e3
+        
         In.fy_hollow = In.f_fu
         In.Es_hollow = In.Ef
 
+    # Reinforcement Layer (세션 상태로 관리)
     In.Layer = 1
     In.nD = [8]
-    sb.markdown(side_border, unsafe_allow_html=True)  #  구분선 ------------------------------------
-    sb.write(h4, ':green[✤ Reinforcement Layer (Rebar & FRP)]')
     In.nb = [6]
     In.nh = [2]
+    
+    sb.markdown(side_border, unsafe_allow_html=True)
+    sb.write(h4, ':green[✤ Reinforcement Layer (Rebar & FRP)]')
+    
     col = sb.columns(2, gap='medium')
     with col[0]:
-        In.sb = [
-            st.number_input(
-                h5 + r'$\bm{s_b}$ [mm] : $\bm{{\small{b}}}$(단위폭) 방향 보강재 간격',
-                min_value=10.0,
-                value=150.0,
-                step=10.0,
-                format='%f',
-                key='sb',
-                label_visibility='visible',
-            )
-        ]
+        In.sb = [create_material_input(
+            h5 + r'$\bm{s_b}$ [mm] : $\bm{{\small{b}}}$(단위폭) 방향 보강재 간격',
+            'sb',
+            min_val=10.0,
+            step=10.0,
+            default=150.0,
+            label_visibility='visible'
+        )]
 
     col = sb.columns(2, gap='large')
     with col[0]:
         st.write(h5, ':blue[✦ 인장측]')
-        In.dia = [
-            st.number_input(
-                h5 + 'dia [mm] : 보강재 외경',
-                min_value=1.0,
-                value=22.2,
-                step=1.0,
-                format='%f',
-                key='dia',
-                label_visibility='visible',
-            )
-        ]
-        In.dc = [
-            st.number_input(
-                h5 + r'$\bm{d_c}$ [mm] : 피복 두께',
-                min_value=1.0,
-                value=60.0,
-                step=2.0,
-                format='%f',
-                key='dc',
-                label_visibility='visible',
-            )
-        ]
+        In.dia = [create_material_input(
+            h5 + 'dia [mm] : 보강재 외경',
+            'dia',
+            min_val=1.0,
+            step=1.0,
+            default=22.2,
+            label_visibility='visible'
+        )]
+        In.dc = [create_material_input(
+            h5 + r'$\bm{d_c}$ [mm] : 피복 두께',
+            'dc',
+            min_val=1.0,
+            step=2.0,
+            default=60.0,
+            label_visibility='visible'
+        )]
 
     with col[1]:
         st.write(h5, ':blue[✦ 압축측]')
-        In.dia1 = [
-            st.number_input(
-                h5 + 'dia [mm] : 보강재 외경',
-                min_value=1.0,
-                value=22.2,
-                step=1.0,
-                format='%f',
-                key='dia1',
-                label_visibility='hidden',
-            )
-        ]
-        In.dc1 = [
-            st.number_input(
-                h5 + r'$\bm{d_c}$ [mm] : 피복 두께',
-                min_value=1.0,
-                value=60.0,
-                step=2.0,
-                format='%f',
-                key='dc1',
-                label_visibility='hidden',
-            )
-        ]
+        In.dia1 = [create_material_input(
+            h5 + 'dia [mm] : 보강재 외경',
+            'dia1',
+            min_val=1.0,
+            step=1.0,
+            default=22.2,
+            label_visibility='hidden'
+        )]
+        In.dc1 = [create_material_input(
+            h5 + r'$\bm{d_c}$ [mm] : 피복 두께',
+            'dc1',
+            min_val=1.0,
+            step=2.0,
+            default=60.0,
+            label_visibility='hidden'
+        )]
+    
     return In

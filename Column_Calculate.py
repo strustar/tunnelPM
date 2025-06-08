@@ -115,6 +115,7 @@ def Cal(In, Reinforcement_Type):
 
     # st.write(dsi, Asi, nst)
     d = np.max(dsi)
+    In.depth = d
     gamma = d / hD
     n = 7
     [cc, Pn, Mn, ee] = [np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n)]
