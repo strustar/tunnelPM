@@ -1,7 +1,7 @@
-def create_review_sheet(wb, In, R, F):
+def create_column_sheet(wb, In, R, F):
     """검토결과 시트 생성 - 아래첨자 적용 및 최적화"""
     
-    review_ws = wb.add_worksheet('검토결과')
+    column_ws = wb.add_worksheet('기둥 강도 검토')
     # review_ws.activate()
     
     # ─── 스타일 정의 ─────────────────────────────
@@ -56,47 +56,47 @@ def create_review_sheet(wb, In, R, F):
     }
     
     for col, width in col_widths.items():
-        review_ws.set_column(f'{col}:{col}', width)
+        column_ws.set_column(f'{col}:{col}', width)
     
     # Rich string 작성 헬퍼 함수
     def write_with_subscript(row, col, text):
         """아래첨자가 필요한 레이블 작성"""
         if 'be' in text:
-            review_ws.write_rich_string(row, col, '단위폭 b', subscript_format, 'e', label_format)
+            column_ws.write_rich_string(row, col, '단위폭 b', subscript_format, 'e', label_format)
         elif 'dc\'' in text:
-            review_ws.write_rich_string(row, col, '피복두께 d', subscript_format, 'c', label_format, '\'')
+            column_ws.write_rich_string(row, col, '피복두께 d', subscript_format, 'c', label_format, '\'')
         elif 'dc' in text:
-            review_ws.write_rich_string(row, col, '피복두께 d', subscript_format, 'c', label_format)
+            column_ws.write_rich_string(row, col, '피복두께 d', subscript_format, 'c', label_format)
         elif 'fck' in text:
-            review_ws.write_rich_string(row, col, '압축강도 f', subscript_format, 'ck', label_format)
+            column_ws.write_rich_string(row, col, '압축강도 f', subscript_format, 'ck', label_format)
         elif 'Ec' in text:
-            review_ws.write_rich_string(row, col, '탄성계수 E', subscript_format, 'c', label_format)
+            column_ws.write_rich_string(row, col, '탄성계수 E', subscript_format, 'c', label_format)
         elif 'Es' in text:
-            review_ws.write_rich_string(row, col, '탄성계수 E', subscript_format, 's', label_format)
+            column_ws.write_rich_string(row, col, '탄성계수 E', subscript_format, 's', label_format)
         elif 'fy' in text:
-            review_ws.write_rich_string(row, col, '항복강도 f', subscript_format, 'y', label_format)
+            column_ws.write_rich_string(row, col, '항복강도 f', subscript_format, 'y', label_format)
         elif 'Pb' in text:
-            review_ws.write_rich_string(row, col, '⚖️ 축력 P', subscript_format, 'b', label_format)
+            column_ws.write_rich_string(row, col, '⚖️ 축력 P', subscript_format, 'b', label_format)
         elif 'Mb' in text:
-            review_ws.write_rich_string(row, col, '📏 모멘트 M', subscript_format, 'b', label_format)
+            column_ws.write_rich_string(row, col, '📏 모멘트 M', subscript_format, 'b', label_format)
         elif 'eb' in text:
-            review_ws.write_rich_string(row, col, '📐 편심 e', subscript_format, 'b', label_format)
+            column_ws.write_rich_string(row, col, '📐 편심 e', subscript_format, 'b', label_format)
         elif 'cb' in text:
-            review_ws.write_rich_string(row, col, '🎯 중립축 깊이 c', subscript_format, 'b', label_format)
+            column_ws.write_rich_string(row, col, '🎯 중립축 깊이 c', subscript_format, 'b', label_format)
         else:
-            review_ws.write(row, col, text, formats['label'])
+            column_ws.write(row, col, text, formats['label'])
     
     row = 0
     max_col = 12  # Column M
     
     # ─── 1. 메인 타이틀 ───────────────────────────────
-    review_ws.merge_range(row, 0, row, max_col, '🏗️ 구조부재 강도 검토 보고서', formats['title'])
-    review_ws.set_row(row, 40)
+    column_ws.merge_range(row, 0, row, max_col, '🏗️ 구조부재 강도 검토 보고서', formats['title'])
+    column_ws.set_row(row, 40)
     row += 2
     
     # ─── 2. 공통 설계 조건 (좌우 배치) ─────────────────
-    review_ws.merge_range(row, 0, row, max_col, '◈ 공통 설계 조건', formats['common'])
-    review_ws.set_row(row, 24)
+    column_ws.merge_range(row, 0, row, max_col, '◈ 공통 설계 조건', formats['common'])
+    column_ws.set_row(row, 24)
     row += 1
     
     # 좌측 섹션 데이터
@@ -140,30 +140,30 @@ def create_review_sheet(wb, In, R, F):
         # 좌측 섹션
         left_row = start_row
         for section_title, items in left_data:
-            review_ws.merge_range(left_row, 0, left_row, 2, section_title, formats['common_sub'])
-            review_ws.set_row(left_row, 22)
+            column_ws.merge_range(left_row, 0, left_row, 2, section_title, formats['common_sub'])
+            column_ws.set_row(left_row, 22)
             left_row += 1
             
             for label, value, unit in items:
                 write_with_subscript(left_row, 0, label)
                 fmt = formats['number'] if isinstance(value, (int, float)) and unit else formats['value']
-                review_ws.write(left_row, 1, value, fmt)
-                review_ws.write(left_row, 2, unit, formats['unit'])
-                review_ws.set_row(left_row, 20)
+                column_ws.write(left_row, 1, value, fmt)
+                column_ws.write(left_row, 2, unit, formats['unit'])
+                column_ws.set_row(left_row, 20)
                 left_row += 1
             left_row += 1
         
         # 우측 섹션
         right_row = start_row
         for section_title, items in right_data:
-            review_ws.merge_range(right_row, 7, right_row, 9, section_title, formats['common_sub'])
+            column_ws.merge_range(right_row, 7, right_row, 9, section_title, formats['common_sub'])
             right_row += 1
             
             for label, value, unit in items:
                 write_with_subscript(right_row, 7, label)
                 fmt = formats['number'] if isinstance(value, (int, float)) and unit else formats['value']
-                review_ws.write(right_row, 8, value, fmt)
-                review_ws.write(right_row, 9, unit, formats['unit'])
+                column_ws.write(right_row, 8, value, fmt)
+                column_ws.write(right_row, 9, unit, formats['unit'])
                 right_row += 1
             right_row += 1
         
@@ -172,15 +172,15 @@ def create_review_sheet(wb, In, R, F):
     write_lr_sections(left_sections, right_sections)
     
     # ─── 3. 철근별 상세 조건 ─────────────────────────
-    review_ws.merge_range(row, 0, row, 5, '📊 이형철근 검토', formats['main_header'])
-    review_ws.merge_range(row, 7, row, 12, '📊 중공철근 검토', formats['main_header'])
-    review_ws.set_row(row, 28)
+    column_ws.merge_range(row, 0, row, 5, '📊 이형철근 검토', formats['main_header'])
+    column_ws.merge_range(row, 7, row, 12, '📊 중공철근 검토', formats['main_header'])
+    column_ws.set_row(row, 28)
     row += 2
     
     # 재료 특성
-    review_ws.merge_range(row, 0, row, 5, '◈ 철근 재료 특성', formats['section'])
-    review_ws.merge_range(row, 7, row, 12, '◈ 철근 재료 특성', formats['section'])
-    review_ws.set_row(row, 24)
+    column_ws.merge_range(row, 0, row, 5, '◈ 철근 재료 특성', formats['section'])
+    column_ws.merge_range(row, 7, row, 12, '◈ 철근 재료 특성', formats['section'])
+    column_ws.set_row(row, 24)
     row += 1
     
     material_data = [
@@ -191,20 +191,20 @@ def create_review_sheet(wb, In, R, F):
     for label, vR, vF, unit in material_data:
         # 좌측 (이형철근)
         write_with_subscript(row, 0, label)
-        review_ws.write(row, 1, vR, formats['number'])
-        review_ws.write(row, 2, unit, formats['unit'])
+        column_ws.write(row, 1, vR, formats['number'])
+        column_ws.write(row, 2, unit, formats['unit'])
         # 우측 (중공철근)
         write_with_subscript(row, 7, label)
-        review_ws.write(row, 8, vF, formats['number'])
-        review_ws.write(row, 9, unit, formats['unit'])
-        review_ws.set_row(row, 20)
+        column_ws.write(row, 8, vF, formats['number'])
+        column_ws.write(row, 9, unit, formats['unit'])
+        column_ws.set_row(row, 20)
         row += 1
     row += 1
     
     # ─── 4. 평형상태 검토 ─────────────────────────────
-    review_ws.merge_range(row, 0, row, 5, '◈ 평형상태 검토', formats['section'])
-    review_ws.merge_range(row, 7, row, 12, '◈ 평형상태 검토', formats['section'])
-    review_ws.set_row(row, 24)
+    column_ws.merge_range(row, 0, row, 5, '◈ 평형상태 검토', formats['section'])
+    column_ws.merge_range(row, 7, row, 12, '◈ 평형상태 검토', formats['section'])
+    column_ws.set_row(row, 24)
     row += 1
     
     equilibrium_data = [
@@ -217,20 +217,20 @@ def create_review_sheet(wb, In, R, F):
     for label, vR, vF, unit in equilibrium_data:
         # 좌측 (이형철근)
         write_with_subscript(row, 0, label)
-        review_ws.write(row, 1, vR, formats['number'])
-        review_ws.write(row, 2, unit, formats['unit'])
+        column_ws.write(row, 1, vR, formats['number'])
+        column_ws.write(row, 2, unit, formats['unit'])
         # 우측 (중공철근)
         write_with_subscript(row, 7, label)
-        review_ws.write(row, 8, vF, formats['number'])
-        review_ws.write(row, 9, unit, formats['unit'])
-        review_ws.set_row(row, 20)
+        column_ws.write(row, 8, vF, formats['number'])
+        column_ws.write(row, 9, unit, formats['unit'])
+        column_ws.set_row(row, 20)
         row += 1
     row += 1
     
     # ─── 5. 기둥강도 검토 결과 ─────────────────────────
-    review_ws.merge_range(row, 0, row, 5, '◈ 기둥강도 검토 결과', formats['section'])
-    review_ws.merge_range(row, 7, row, 12, '◈ 기둥강도 검토 결과', formats['section'])
-    review_ws.set_row(row, 24)
+    column_ws.merge_range(row, 0, row, 5, '◈ 기둥강도 검토 결과', formats['section'])
+    column_ws.merge_range(row, 7, row, 12, '◈ 기둥강도 검토 결과', formats['section'])
+    column_ws.set_row(row, 24)
     row += 1
     
     # 헤더 작성 (아래첨자 적용)
@@ -239,15 +239,15 @@ def create_review_sheet(wb, In, R, F):
     
     for i, (hdr, unit) in enumerate(zip(headers, header_units)):
         if i == 1:  # Pu / ϕPn
-            review_ws.write_rich_string(row, i, 'P', subscript_format, 'u', label_format, ' / ϕP', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
-            review_ws.write_rich_string(row, i + 7, 'P', subscript_format, 'u', label_format, ' / ϕP', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
+            column_ws.write_rich_string(row, i, 'P', subscript_format, 'u', label_format, ' / ϕP', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
+            column_ws.write_rich_string(row, i + 7, 'P', subscript_format, 'u', label_format, ' / ϕP', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
         elif i == 2:  # Mu / ϕMn
-            review_ws.write_rich_string(row, i, 'M', subscript_format, 'u', label_format, ' / ϕM', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
-            review_ws.write_rich_string(row, i + 7, 'M', subscript_format, 'u', label_format, ' / ϕM', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
+            column_ws.write_rich_string(row, i, 'M', subscript_format, 'u', label_format, ' / ϕM', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
+            column_ws.write_rich_string(row, i + 7, 'M', subscript_format, 'u', label_format, ' / ϕM', subscript_format, 'n', label_format, ' ' + unit, formats['sub_header'])
         else:
-            review_ws.write(row, i, hdr + ' ' + unit if unit else hdr, formats['sub_header'])
-            review_ws.write(row, i + 7, hdr + ' ' + unit if unit else hdr, formats['sub_header'])
-    review_ws.set_row(row, 22)
+            column_ws.write(row, i, hdr + ' ' + unit if unit else hdr, formats['sub_header'])
+            column_ws.write(row, i + 7, hdr + ' ' + unit if unit else hdr, formats['sub_header'])
+    column_ws.set_row(row, 22)
     row += 1
     
     # 결과 저장
@@ -283,7 +283,7 @@ def create_review_sheet(wb, In, R, F):
         ]
         
         for j, (val, fmt) in enumerate(result_data):
-            review_ws.write(row, j, val, fmt)
+            column_ws.write(row, j, val, fmt)
         
         # 우측 (중공철근) 결과
         result_data[1] = (Pu_str_F, formats['value'])
@@ -292,16 +292,16 @@ def create_review_sheet(wb, In, R, F):
         result_data[5] = ('PASS ✅' if F_pass else 'FAIL ❌', formats['ok'] if F_pass else formats['ng'])
         
         for j, (val, fmt) in enumerate(result_data):
-            review_ws.write(row, j + 7, val, fmt)
+            column_ws.write(row, j + 7, val, fmt)
             
-        review_ws.set_row(row, 24)
+        column_ws.set_row(row, 24)
         row += 1
     row += 1
     
     # ─── 6. 최종 종합 판정 ────────────────────────────
-    review_ws.merge_range(row, 0, row, 5, '◈ 최종 종합 판정', formats['section'])
-    review_ws.merge_range(row, 7, row, 12, '◈ 최종 종합 판정', formats['section'])
-    review_ws.set_row(row, 24)
+    column_ws.merge_range(row, 0, row, 5, '◈ 최종 종합 판정', formats['section'])
+    column_ws.merge_range(row, 7, row, 12, '◈ 최종 종합 판정', formats['section'])
+    column_ws.set_row(row, 24)
     row += 1
     
     # 최종 판정
@@ -309,9 +309,9 @@ def create_review_sheet(wb, In, R, F):
         final_pass = all(all_results[key]) if all_results[key] else False
         text = '🎉 전체 조건 만족 - 구조 안전' if final_pass else '⚠️ 일부 조건 불만족 - 보강 검토 필요'
         fmt = formats['final_ok'] if final_pass else formats['final_ng']
-        review_ws.merge_range(row, col_start, row, col_start + 5, text, fmt)
+        column_ws.merge_range(row, col_start, row, col_start + 5, text, fmt)
     
-    review_ws.set_row(row, 34)
+    column_ws.set_row(row, 34)
     row += 2
     
     # ─── 7. 참고사항 ─────────────────────────────
@@ -325,9 +325,9 @@ def create_review_sheet(wb, In, R, F):
         f"📖 설계 기준: {getattr(In, 'RC_Code', 'KDS 41 17 00 (2021)')} (콘크리트구조 설계기준)\n"
         "📊 상세 분석 데이터: '데이터' 시트 참조 (P-M Interaction Diagram 등)"
     )
-    review_ws.merge_range(row, 0, row + 5, max_col, note_text, formats['note'])
+    column_ws.merge_range(row, 0, row + 5, max_col, note_text, formats['note'])
     for i in range(6):
-        review_ws.set_row(row + i, 20)
+        column_ws.set_row(row + i, 20)
     
-    return review_ws
+    return column_ws
 

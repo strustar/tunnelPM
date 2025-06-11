@@ -65,9 +65,9 @@ def Sidebar():
 
     sb.write('## ', ':blue[[Information : 입력값 📘]]')
 
-    sb.markdown(side_border, unsafe_allow_html=True)
-    sb.write(h4, ':green[✤ Option]')
-    In.Option = sb.radio('Option', ('기둥 검토', '전단 검토', '사용성 검토'), horizontal=True, label_visibility='collapsed', index=0)   
+    # sb.markdown(side_border, unsafe_allow_html=True)
+    # sb.write(h4, ':green[✤ Option]')
+    # In.Option = sb.radio('Option', ('기둥 검토', '전단 검토', '사용성 검토'), horizontal=True, label_visibility='collapsed', index=0)   
 
     # 동적 UI 섹션 (가장 먼저 배치)
     from Column_Sidebar_Fcn import create_column_ui

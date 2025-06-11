@@ -165,3 +165,58 @@ def input_box(In):
     </style> """
     
     st.markdown(input_style, unsafe_allow_html=True)
+    # 탭 스타일
+    st.markdown("""
+<style>
+.stTabs [data-baseweb="tab-list"] {
+    gap: 24px;
+    justify-content: center;
+    background: rgba(186, 186, 59, 0.5);
+    padding: 12px;
+    border-radius: 20px;
+    border: 1px solid #dee2e6;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+    margin: 10px 0;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 55px !important;
+    background: linear-gradient(145deg, #ffffff, #f8f9fa) !important;
+    border-radius: 16px !important;
+    border: 2px solid #2196f3 !important;
+    color: #495057 !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    padding: 0 24px !important;
+    margin: 0 2px !important;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background: #bdc51b !important;
+    border: 2px solid #2196f3 !important;
+    color: #1565c0 !important;
+    # transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 6px 20px rgba(33, 150, 243, 0.25), inset 0 1px 0 rgba(255,255,255,0.9) !important;
+    font-weight: 700 !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(145deg, #4caf50, #66bb6a) !important;
+    color: black !important;
+    border: 2px solid #4caf50 !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+}
+
+.stTabs [data-baseweb="tab"] p {
+    font-size: 18px !important;
+    margin: 0 !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+}
+</style>
+""", unsafe_allow_html=True)

@@ -40,7 +40,7 @@ def Fig(In, R, F):
     with table_Common:
         if '중공' not in In.PM_Type:
             st.session_state.selected_row = None
-        placeholder = st.empty()
+        # placeholder = st.empty()
 
         if '중공' in In.PM_Type:
             st.info('아래 라디오 버튼을 클릭하세요', icon="ℹ️")
@@ -604,13 +604,7 @@ def PM_plot(In, R, F, loc, selected_row):
                 colors = ['red', 'green', 'blue', 'red', 'green', 'blue', 'red', 'green', 'blue', 'black']
                 In.placeholder_strength[i].write(f":{colors[i]}[{In.safe_RC[i]:.2f} / {safety:.2f}]")
                 
-                # if i == 0:
-                #     In.placeholder[i].write(f":red[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
-                # elif i == 1:
-                #     In.placeholder[i].write(f":green[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
-                # elif i == 2:
-                #     In.placeholder[i].write(f":blue[{In.safe_RC[i]:.2f} / {safety:.2f}]")  
-            
+        
             # if x_int is None:
             #     st.info(f"{i}번째 점 교점 미발견: 데이터·기울기 확인 필요")
             # else:

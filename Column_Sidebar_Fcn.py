@@ -245,7 +245,7 @@ def create_column_ui(In, sb, side_border="", h4=""):
         special_header = "**삭제**" if st.session_state.row_count > 3 else None
 
         config = {
-            'title'             : '기둥 검토',
+            'title'             : '기둥 강도 검토',
             'button_key'        : 'add_row_btn',
             'add_callback'      : add_strength_row,
             'show_checkbox'     : True,
@@ -385,12 +385,10 @@ def create_column_ui(In, sb, side_border="", h4=""):
 
     # 라디오 옵션에 따라 섹션 렌더링
     option = getattr(In, 'Option', None)
+    
     # 1. 기둥 강도 검토 섹션 (placeholder_strength)
-    if option == '기둥 검토':
-        create_strength_section()
+    create_strength_section()  
     # 2. 전단 검토 섹션 (placeholder_shear)
-    elif option == '전단 검토':
-        create_shear_strength_section()
+    create_shear_strength_section()
     # 3. 사용성 검토 섹션 (placeholder_serviceability)
-    elif option == '사용성 검토':
-        create_serviceability_section()
+    create_serviceability_section()

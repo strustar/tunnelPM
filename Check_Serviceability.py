@@ -370,12 +370,14 @@ def render_case_analysis(data, In, i, num_symbols):
     result_col2.metric("실제 배근 간격", f"{In.sb[0]:.1f} mm")
 
     if In.sb[0] <= s_allowed_final:
+        is_safe = True
         st.markdown(f"""
         <div class="result-success">
             ✅ <strong>O.K. (배근 간격 {In.sb[0]:.1f} mm ≤ 허용 간격 {s_allowed_final:.1f} mm)</strong>
         </div>
         """, unsafe_allow_html=True)
     else:
+        is_safe = False
         st.markdown(f"""
         <div class="result-error">
             ❌ <strong>N.G. (배근 간격 {In.sb[0]:.1f} mm > 허용 간격 {s_allowed_final:.1f} mm)</strong>
@@ -383,6 +385,7 @@ def render_case_analysis(data, In, i, num_symbols):
         """, unsafe_allow_html=True)
 
     st.markdown("---")
+    return is_safe
 
 
 def serviceability_check_results(In, R, F):
@@ -405,11 +408,22 @@ def serviceability_check_results(In, R, F):
     col_R, col_F = st.columns(2, gap="large")
     
     # 왼쪽 컬럼: R 데이터
+    is_safe_R = []
     with col_R:
         for i in range(len(In.P0)):
-            render_case_analysis(R, In, i, num_symbols)
+            is_safe_R.append(render_case_analysis(R, In, i, num_symbols))
 
     # 오른쪽 컬럼: F 데이터
+    is_safe_F = []
     with col_F:
         for i in range(len(In.P0)):
-            render_case_analysis(F, In, i, num_symbols)
+            is_safe_F.append(render_case_analysis(F, In, i, num_symbols))
+
+    for i in range(len(In.Vu)):
+        # 1) R 판정 텍스트
+        r_status = ":green[OK]" if is_safe_R[i] else ":red[NG]"
+        # 2) F 판정 텍스트
+        f_status = ":green[OK]" if is_safe_F[i] else ":red[NG]"
+        # 3) 슬래시 구분하여 출력
+        In.placeholder_serviceability[i].write(f"{r_status} / {f_status}")
+

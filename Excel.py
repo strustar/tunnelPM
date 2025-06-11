@@ -1,10 +1,8 @@
-def Excel(In, R, F):
+def Excel(In, R, F, path):
     import os, time, subprocess, pythoncom
     from win32com.client import GetActiveObject, DispatchEx
     import pandas as pd
     import numpy as np
-
-    path = os.path.abspath("a.xlsx")
 
     # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
     pythoncom.CoInitialize()
@@ -169,21 +167,16 @@ def Excel(In, R, F):
             apply_formatting(wb, ws, df, start_col, PM, title)
 
         import Excel_Column
-        Excel_Column.create_review_sheet(wb, In, R, F)
-        import Column_Chart
-        Column_Chart.create_pm_chart_excel(wb, In, R, F)
+        column_ws = Excel_Column.create_column_sheet(wb, In, R, F)
+        import Excel_Chart
+        chart_ws = Excel_Chart.create_chart_excel(wb, In, R, F)        
+        chart_ws = Excel_Chart.create_additional_analysis_charts(wb, In, R, F, chart_ws)
         import Excel_Serviceability
-        Excel_Serviceability.create_serviceability_sheet(wb, In, R, F)
+        serviceability_ws = Excel_Serviceability.create_serviceability_sheet(wb, In, R, F)
+        import Excel_Shear
+        shear_ws = Excel_Shear.create_shear_sheet(wb, In, R)
 
-    # ─── 5) 엑셀 파일 열기 ────────────────────────────
-    os.startfile(path)
-    # import streamlit as st
-    # with open(path, "rb") as file:
-    #     st.download_button(
-    #         label="📥 엑셀 파일 다운로드",
-    #         data=file,
-    #         file_name=path.split("/")[-1],
-    #         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    #     )
+        chart_ws.activate()
+
 
     
