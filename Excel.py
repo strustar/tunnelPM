@@ -1,11 +1,11 @@
 def Excel(In, R, F, path):
-    import os, time
-    from win32com.client import GetActiveObject, DispatchEx
+    import os, time    
     import pandas as pd
     import numpy as np
 
     ### 로컬 실행용
     # import subprocess, pythoncom
+    # from win32com.client import GetActiveObject, DispatchEx
     # # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
     # pythoncom.CoInitialize()
     # try: 
