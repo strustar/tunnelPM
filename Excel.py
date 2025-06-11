@@ -1,25 +1,28 @@
 def Excel(In, R, F, path):
-    import os, time, subprocess, pythoncom
+    import os, time
     from win32com.client import GetActiveObject, DispatchEx
     import pandas as pd
     import numpy as np
 
-    # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
-    pythoncom.CoInitialize()
-    try: 
-        excel = GetActiveObject("Excel.Application")
-    except: 
-        excel = DispatchEx("Excel.Application")
-    excel.Visible = False
-    for wb in list(excel.Workbooks):
-        if os.path.normcase(wb.FullName) == os.path.normcase(path):
-            wb.Close(SaveChanges=False)
-            break
-    excel.Quit()
-    pythoncom.CoUninitialize()
-    subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # time.sleep(1)
+    ### 로컬 실행용
+    # import subprocess, pythoncom
+    # # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
+    # pythoncom.CoInitialize()
+    # try: 
+    #     excel = GetActiveObject("Excel.Application")
+    # except: 
+    #     excel = DispatchEx("Excel.Application")
+    # excel.Visible = False
+    # for wb in list(excel.Workbooks):
+    #     if os.path.normcase(wb.FullName) == os.path.normcase(path):
+    #         wb.Close(SaveChanges=False)
+    #         break
+    # excel.Quit()
+    # pythoncom.CoUninitialize()
+    # subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
+    #                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # # time.sleep(1)
+    ### 로컬 실행용
 
     # ─── 2) 데이터 처리 함수 ────────────────────────────
     def process_data(PM):
