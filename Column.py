@@ -1,5 +1,5 @@
 import streamlit as st
-import Column_Sidebar, Column_Calculate, Column_Result, Excel
+import Column_Sidebar, Column_Calculate, Column_Result, Excel_Data
 import Check_Shear, Check_Column, Check_Serviceability, Check_Steel_Stress_Fcn
 
 import os, sys, importlib
@@ -57,17 +57,44 @@ with tabs[0]:
     Column_Result.Fig(In, R, F)    
 with tabs[1]:
     Check_Column.check_column(In, R, F)
+    # import ff
+    # ff.enhanced_column_strength_check(In, R, F)
+    # st.write('## :green[기둥 강도 검토 보고서 개선]')
 with tabs[2]:
     Check_Shear.check_shear(In, R)    # 전단철근은 이형철근으로 검토
 with tabs[3]:
     Check_Serviceability.display_basic_theory()
     Check_Serviceability.serviceability_check_results(In, R, F)
-with tabs[4]:
+with tabs[4]:   # Excel 저장
     path = os.path.abspath("a.xlsx")
-    Excel.Excel(In, R, F, path)
+
+    ### 로컬 실행용
+    # import subprocess, pythoncom
+    # from win32com.client import GetActiveObject, DispatchEx
+    # # ─── 1) 기존 엑셀 닫기 & 프로세스 종료 ─────────────
+    # pythoncom.CoInitialize()
+    # try: 
+    #     excel = GetActiveObject("Excel.Application")
+    # except: 
+    #     excel = DispatchEx("Excel.Application")
+    # excel.Visible = False
+    # for wb in list(excel.Workbooks):
+    #     if os.path.normcase(wb.FullName) == os.path.normcase(path):
+    #         wb.Close(SaveChanges=False)
+    #         break
+    # excel.Quit()
+    # pythoncom.CoUninitialize()
+    # subprocess.call(["taskkill", "/F", "/IM", "EXCEL.EXE"],
+    #                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # # time.sleep(1)    
+    ### 로컬 실행용
+    
+    Excel_Data.excel_data_sheet(In, R, F, path)
 
     # ─── 5) 엑셀 파일 열기 ────────────────────────────    
+    ### 로컬 실행용
     # os.startfile(path)
+    ### 로컬 실행용
     st.write('## :green[엑셀 파일 다운로드]')
     with open(path, "rb") as file:
         st.download_button(
@@ -78,16 +105,6 @@ with tabs[4]:
         )
     pass
 
-# if '기둥' in In.Option:
-#     Column_Result.Fig(In, R, F)
-#     Check_Column.check_column(In, R, F)
-# elif '전단' in In.Option:
-#     Check_Shear.check_shear(In, R)    # 전단철근은 이형철근으로 검토
-# elif '사용성' in In.Option:
-#     Check_Serviceability.display_basic_theory()
-#     Check_Serviceability.serviceability_check_results(In, R, F)
-
-# Excel.Excel(In, R, F)
 
 # import sys
 # sys.exit()

@@ -1,4 +1,5 @@
 import streamlit as st
+import math
 
 def apply_css_styles():
     """공통 CSS 스타일을 적용합니다."""
@@ -70,7 +71,16 @@ def apply_css_styles():
         
         /* 균열 제어 박스 */
         .crack-box {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: #4e3141;
+            padding: 1.5rem;
+            border-radius: 10px;
+            color: white;
+            margin-bottom: 1rem;
+        }
+        
+        /* 비균열 단면 박스 */
+        .no-crack-box {
+            background: #6a766d;
             padding: 1.5rem;
             border-radius: 10px;
             color: white;
@@ -87,6 +97,10 @@ def apply_css_styles():
         }
         
         .crack-box h3, .crack-box p {
+            color: white !important;
+        }
+        
+        .no-crack-box h3, .no-crack-box p {
             color: white !important;
         }
         
@@ -110,6 +124,15 @@ def apply_css_styles():
         
         .result-error {
             background: #dc3545;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            margin: 0.5rem 0;
+        }
+        
+        .result-no-check {
+            background: #28a745;
             color: white;
             padding: 1rem;
             border-radius: 8px;
@@ -151,6 +174,34 @@ def display_theory_background():
             <p><strong>3.</strong> <strong>콘크리트 인장 무시:</strong> 인장력은 전량 철근이 부담</p>
         </div>
         """, unsafe_allow_html=True)
+
+def check_crack_section(P0_case, M0_case, In):
+    """
+    균열단면 여부를 판단하는 함수
+    조건: M*y/I - P/A ≥ 0.63*√fck → 균열단면
+    """
+    # 단면 제원 추출
+    b = float(getattr(In, 'be', 1000))  # mm
+    h = float(getattr(In, 'height', 500))  # mm  
+    d = float(getattr(In, 'depth', 450))  # mm
+    fck = float(getattr(In, 'fck', 24))  # MPa
+    
+    # 단면 성질 계산
+    A = b * h  # 단면적 (mm²)
+    I = b * h**3 / 12  # 단면2차모멘트 (mm⁴)
+    y = h / 2  # 중립축에서 최외단까지 거리 (mm)
+    
+    # 단위 환산 (kN → N, kN·m → N·mm)
+    P0_N = P0_case * 1000  # N
+    M0_Nmm = M0_case * 1000 * 1000  # N·mm
+    
+    # 균열 판정 계산
+    stress_term = (M0_Nmm * y / I) - (P0_N / A)  # MPa 단위 (N/mm² = MPa)
+    crack_limit = 0.63 * math.sqrt(fck)  # MPa
+    
+    is_cracked = stress_term >= crack_limit
+    
+    return is_cracked, stress_term, crack_limit, A, I, y
 
 def display_basic_theory():
     """기본 이론만 표시하는 함수 (단독 사용 가능)"""
@@ -229,13 +280,19 @@ def display_basic_theory():
 
     # --- Part 2: 균열 제어 ---
     st.markdown("---")
-    # st.markdown("")
     st.markdown("""
     <div style="display: inline-block; background:linear-gradient(135deg, #FF8C00, #FFA500); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
         <h2 style="color:black; text-align: left; margin:0;">Part 2. 휨균열 제어를 위한 철근 간격 검토</h2>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("")
+
+    # --- 균열단면 체크 과정 추가 ---
+    st.markdown("### 🔍 2.0 균열단면 체크 (선행 검토)")
+    st.markdown("- 균열 발생 여부를 판단하여 후속 검토 필요성 결정")
+    
+    st.latex(r"\frac{M \cdot y}{I} - \frac{P}{A} \geq 0.63 \sqrt{f_{ck}} \quad \rightarrow \text{균열단면 (균열 검토 필요)}")
+    st.latex(r"\frac{M \cdot y}{I} - \frac{P}{A} < 0.63 \sqrt{f_{ck}} \quad \rightarrow \text{비균열단면 (균열 검토 불필요)}")
 
     st.markdown("### 🔬 2.1 최외단 철근 응력 $f_{st}$ 산정")
     st.markdown("- 균열폭에 가장 지배적인 최외단 철근의 응력을 계산")
@@ -267,7 +324,6 @@ def display_basic_theory():
         """, unsafe_allow_html=True)
 
 
-
 def render_case_analysis(data, In, i, num_symbols):
     """단일 케이스 해석을 수행하고 결과를 현재 컬럼에 표시"""
     
@@ -275,6 +331,51 @@ def render_case_analysis(data, In, i, num_symbols):
     P0_case, M0_case = In.P0[i], In.M0[i]
 
     st.markdown(f"# **{num_symbols[i]}번 검토**")
+
+    # --- 균열단면 체크 먼저 수행 ---
+    st.markdown("### 🔍 **Step 0: 균열단면 체크**")
+    
+    is_cracked, stress_term, crack_limit, A, I, y = check_crack_section(P0_case, M0_case, In)
+    
+    st.markdown("#### **균열 판정 계산:**")
+    st.latex(r"\frac{M \cdot y}{I} - \frac{P}{A} \quad vs \quad 0.63 \sqrt{f_{ck}}")
+    
+    # 계산 과정 상세 표시
+    b = float(getattr(In, 'be', 1000))
+    h = float(getattr(In, 'height', 500))
+    fck = float(getattr(In, 'fck', 24))
+    
+    st.latex(f"\\frac{{{M0_case*1e6:.0f} \\times {y:.1f}}}{{{I:.0f}}} - \\frac{{{P0_case*1000:.0f}}}{{{A:.0f}}} = {stress_term:.3f} \\text{{ MPa}}")
+    st.latex(f"0.63 \\times \\sqrt{{{fck:.1f}}} = 0.63 \\times {math.sqrt(fck):.3f} = {crack_limit:.3f} \\text{{ MPa}}")
+    
+    if not is_cracked:
+        # 비균열 단면인 경우
+        st.markdown(f"""
+        <div class="no-crack-box">
+            <h3 style="text-align: center; margin-top: 0;">✅ 비균열 단면</h3>
+            <p style="text-align: center;">{stress_term:.3f} MPa < {crack_limit:.3f} MPa</p>
+            <p style="text-align: center;">🎉 균열 검토 불필요</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="result-no-check">
+            ✅ <strong>균열 검토 불필요 (비균열 단면)</strong>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        return True  # 비균열이므로 안전한 것으로 판정
+    
+    else:
+        # 균열 단면인 경우 - 기존 로직 계속 진행
+        st.markdown(f"""
+        <div class="crack-box">
+            <h3 style="text-align: center; margin-top: 0;">⚠️ 균열 단면</h3>
+            <p style="text-align: center;">{stress_term:.3f} MPa ≥ {crack_limit:.3f} MPa</p>
+            <p style="text-align: center;">🔍 균열 검토 필요</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # --- 케이스 분류 및 해석 방법 선택 ---
     if P0_case == 0:
@@ -334,7 +435,7 @@ def render_case_analysis(data, In, i, num_symbols):
 
     st.markdown("---")
     
-    # --- 균열 검토 (공통) ---
+    # --- 균열 검토 (균열 단면인 경우에만 수행) ---
     st.markdown("### 📏 **B. 휨균열 제어 검토**")
     
     # 최외단 철근 응력 계산
@@ -426,4 +527,3 @@ def serviceability_check_results(In, R, F):
         f_status = ":green[OK]" if is_safe_F[i] else ":red[NG]"
         # 3) 슬래시 구분하여 출력
         In.placeholder_serviceability[i].write(f"{r_status} / {f_status}")
-

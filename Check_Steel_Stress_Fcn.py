@@ -24,7 +24,7 @@ def calculate_steel_stress(In, R):
         Ec = float(getattr(In, 'Ec', []))
         Es = float(getattr(In, 'Es', []))
         fy = float(getattr(R, 'fy', []))
-        As = float(getattr(R, 'Ast_total', []))
+        As = float(getattr(R, 'Ast_tension', []))
         
         # 하중 케이스 (리스트 형태) 추출
         P0_list = getattr(In, 'P0', [])

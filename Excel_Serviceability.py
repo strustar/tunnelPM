@@ -1,155 +1,353 @@
 import xlsxwriter
+import math
+
+def check_crack_section(P0_case, M0_case, In):
+    """
+    균열단면 여부를 판단하는 함수
+    조건: M*y/I - P/A ≥ 0.63*√fck → 균열단면
+    """
+    # 단면 제원 추출
+    b = float(getattr(In, 'be', 1000))  # mm
+    h = float(getattr(In, 'height', 500))  # mm
+    fck = float(getattr(In, 'fck', 24))  # MPa
+
+    # 단면 성질 계산
+    A = b * h  # 단면적 (mm²)
+    I = b * h**3 / 12  # 단면2차모멘트 (mm⁴)
+    y = h / 2  # 중립축에서 최외단까지 거리 (mm)
+
+    # 단위 환산 (kN → N, kN·m → N·mm)
+    P0_N = P0_case * 1000  # N
+    M0_Nmm = M0_case * 1000 * 1000  # N·mm
+
+    # 균열 판정 계산
+    stress_term = (M0_Nmm * y / I) - (P0_N / A) if I > 0 and A > 0 else 0 # MPa 단위
+    crack_limit = 0.63 * math.sqrt(fck)  # MPa
+
+    is_cracked = stress_term >= crack_limit
+
+    return is_cracked, stress_term, crack_limit, A, I, y
+
+def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats):
+    """
+    단일 케이스 분석 결과를 엑셀 시트에 상세하게 렌더링
+    """
+    row = start_row
+    
+    # 데이터 추출
+    fs_case, x_case = data.fs[i], data.x[i]
+    P0_case, M0_case = In.P0[i], In.M0[i]
+
+    # 케이스 헤더
+    ws.merge_range(row, start_col, row, start_col + 6, f"{symbol}번 검토", formats['case_header'])
+    ws.set_row(row, 30)
+    row += 1
+
+    # --- Step 0: 균열단면 체크 ---
+    ws.merge_range(row, start_col, row, start_col + 6, "🔍 Step 0: 균열단면 체크", formats['step_header'])
+    row += 1
+    
+    is_cracked, stress_term, crack_limit, A, I, y = check_crack_section(P0_case, M0_case, In)
+    
+    # 균열 판정 계산 상세 표시
+    ws.write(row, start_col, "균열 판정 계산:", formats['subheader'])
+    row += 1
+    
+    ws.write(row, start_col, "공식", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, "M × y / I - P / A  vs  0.63 × √fck", formats['formula'])
+    row += 1
+    
+    # 상세 계산 과정
+    b = float(getattr(In, 'be', 1000))
+    h = float(getattr(In, 'height', 500))
+    fck = float(getattr(In, 'fck', 24))
+    
+    ws.write(row, start_col, "계산", formats['label'])
+    calculation_text = f"{M0_case*1e6:.0f} × {y:.1f} / {I:.0f} - {P0_case*1000:.0f} / {A:.0f} = {stress_term:.3f} MPa"
+    ws.merge_range(row, start_col + 1, row, start_col + 6, calculation_text, formats['calculation'])
+    row += 1
+    
+    ws.write(row, start_col, "한계값", formats['label'])
+    limit_text = f"0.63 × √{fck:.1f} = 0.63 × {math.sqrt(fck):.3f} = {crack_limit:.3f} MPa"
+    ws.merge_range(row, start_col + 1, row, start_col + 6, limit_text, formats['calculation'])
+    row += 1
+
+    # 균열 판정 결과
+    if not is_cracked:
+        ws.merge_range(row, start_col, row + 1, start_col + 6, 
+                      f"✅ 비균열 단면\n{stress_term:.3f} MPa < {crack_limit:.3f} MPa\n🎉 균열 검토 불필요", 
+                      formats['no_crack_box'])
+        ws.set_row(row, 50)
+        row += 2
+        
+        # 최종 판정 (비균열)
+        ws.merge_range(row, start_col, row, start_col + 6, "✅ 균열 검토 불필요 (비균열 단면)", formats['result_success'])
+        row += 2
+        return row - start_row
+
+    # 균열 단면인 경우
+    ws.merge_range(row, start_col, row + 1, start_col + 6, 
+                  f"⚠️ 균열 단면\n{stress_term:.3f} MPa ≥ {crack_limit:.3f} MPa\n🔍 균열 검토 필요", 
+                  formats['crack_box'])
+    ws.set_row(row, 50)
+    row += 2
+
+    # 케이스 분류
+    if P0_case == 0:
+        case_title = f"🎯 Case Ⅰ: 특수한 경우\n순수 휨 (P₀ = {P0_case:.1f} kN, M₀ = {M0_case:.1f} kN·m)\n📊 보(Beam)에 해당 - 해석적 풀이 적용"
+        box_format = formats['case_special_box']
+    else:
+        case_title = f"⚙️ Case Ⅱ: 일반적인 경우\n축력+휨 (P₀ = {P0_case:.1f} kN, M₀ = {M0_case:.1f} kN·m)\n🏛️ 기둥(Column)에 해당 - 수치해석 필요"
+        box_format = formats['case_general_box']
+    
+    ws.merge_range(row, start_col, row + 2, start_col + 6, case_title, box_format)
+    ws.set_row(row, 55)
+    row += 3
+
+    # --- A. 탄성 해석 과정 ---
+    ws.merge_range(row, start_col, row, start_col + 6, "🔬 A. 탄성 해석 과정 (수치해석 접근)", formats['section_header'])
+    row += 1
+
+    if P0_case == 0:
+        # 특수한 경우: 순수 휨
+        ws.write(row, start_col, "Step 1: 연립 평형방정식 설정", formats['step_title'])
+        row += 1
+        ws.write(row, start_col, "축력 평형", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "P₀ = C - T = 1/2 × fc × b × x - As × fs", formats['formula'])
+        row += 1
+        ws.write(row, start_col, "모멘트 평형", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "M₀ = C × (h/2 - x/3) + T × (d - h/2)", formats['formula'])
+        row += 1
+        
+        ws.write(row, start_col, "Step 2: 수치해석 결과", formats['step_title'])
+        row += 1
+        ws.write(row, start_col, "주의", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "직접 풀이 불가능하여 반복계산 통해 도출", formats['explanation'])
+        row += 1
+        ws.write(row, start_col, "중립축", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:.1f} mm (수치해)", formats['result_value'])
+        row += 1
+        ws.write(row, start_col, "철근응력", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:.1f} MPa (수치해)", formats['result_value'])
+        row += 1
+        
+    else:
+        # 일반적인 경우: 축력+휨
+        ws.write(row, start_col, "Step 1: 연립 평형방정식 설정", formats['step_title'])
+        row += 1
+        ws.write(row, start_col, "축력 평형", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "P₀ = C - T = 1/2 × fc × b × x - As × fs", formats['formula'])
+        row += 1
+        ws.write(row, start_col, "모멘트 평형", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "M₀ = C × (h/2 - x/3) + T × (d - h/2)", formats['formula'])
+        row += 1
+        
+        ws.write(row, start_col, "Step 2: 수치해석 결과", formats['step_title'])
+        row += 1
+        ws.write(row, start_col, "특징", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, "비선형 연립방정식 → fsolve 등 반복계산 필요", formats['explanation'])
+        row += 1
+        ws.write(row, start_col, "중립축", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:.1f} mm (수치해)", formats['result_value'])
+        row += 1
+        ws.write(row, start_col, "철근응력", formats['label'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:.1f} MPa (수치해)", formats['result_value'])
+        row += 1
+
+    # --- B. 휨균열 제어 검토 ---
+    ws.merge_range(row, start_col, row, start_col + 6, "📏 B. 휨균열 제어 검토", formats['section_header'])
+    row += 1
+
+    # Step 1: 최외단 철근 응력 산정
+    ws.write(row, start_col, "Step 1: 최외단 철근 응력 fst 산정", formats['step_title'])
+    row += 1
+    fst_case = fs_case  # 1단 배근 가정
+    ws.write(row, start_col, "가정", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, "fst = fs × (h - dc - x) / (d - x) ≈ fs", formats['formula'])
+    row += 1
+    ws.write(row, start_col, "결과", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, f"fst = {fst_case:.1f} MPa", formats['result_value'])
+    row += 1
+
+    # Step 2: 최대 허용 간격 산정
+    ws.write(row, start_col, "Step 2: 최대 허용 간격 산정 [KDS 기준]", formats['step_title'])
+    row += 1
+    
+    # 조건 1
+    ws.write(row, start_col, "조건 1", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, "s₁ = 375 × (210 / fst) - 2.5 × Cc", formats['formula'])
+    row += 1
+    
+    s_allowed_1 = 375 * (210 / fst_case) - 2.5 * In.Cc if fst_case > 0 else float('inf')
+    ws.write(row, start_col, "계산", formats['label'])
+    calc_text_1 = f"s₁ = 375 × (210 / {fst_case:.1f}) - 2.5 × {In.Cc:.1f} = {s_allowed_1:.1f} mm"
+    ws.merge_range(row, start_col + 1, row, start_col + 6, calc_text_1, formats['calculation'])
+    row += 1
+    
+    # 조건 2
+    ws.write(row, start_col, "조건 2", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, "s₂ = 300 × (210 / fst)", formats['formula'])
+    row += 1
+    
+    s_allowed_2 = 300 * (210 / fst_case) if fst_case > 0 else float('inf')
+    ws.write(row, start_col, "계산", formats['label'])
+    calc_text_2 = f"s₂ = 300 × (210 / {fst_case:.1f}) = {s_allowed_2:.1f} mm"
+    ws.merge_range(row, start_col + 1, row, start_col + 6, calc_text_2, formats['calculation'])
+    row += 1
+    
+    # 최종 허용 간격
+    s_allowed_final = min(s_allowed_1, s_allowed_2)
+    ws.write(row, start_col, "최종 허용", formats['label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, f"sallow = min(s₁, s₂) = {s_allowed_final:.1f} mm", formats['result_value_bold'])
+    row += 1
+
+    # Step 3: 최종 판정
+    ws.write(row, start_col, "Step 3: 최종 판정", formats['step_title'])
+    row += 1
+    
+    ws.write(row, start_col, "최종 허용 간격", formats['metric_label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{s_allowed_final:.1f} mm", formats['metric_value'])
+    ws.merge_range(row, start_col + 3, row, start_col + 6, "Min(s₁, s₂)", formats['metric_note'])
+    row += 1
+    
+    ws.write(row, start_col, "실제 배근 간격", formats['metric_label'])
+    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{In.sb[0]:.1f} mm", formats['metric_value'])
+    row += 1
+
+    # 최종 판정 결과
+    if In.sb[0] <= s_allowed_final:
+        result_text = f"✅ O.K. (배근 간격 {In.sb[0]:.1f} mm ≤ 허용 간격 {s_allowed_final:.1f} mm)"
+        result_format = formats['result_success']
+    else:
+        result_text = f"❌ N.G. (배근 간격 {In.sb[0]:.1f} mm > 허용 간격 {s_allowed_final:.1f} mm)"
+        result_format = formats['result_error']
+    
+    ws.merge_range(row, start_col, row + 1, start_col + 6, result_text, result_format)
+    ws.set_row(row, 40)
+    row += 2
+    
+    return row - start_row
 
 def create_serviceability_sheet(wb, In, R, F):
     """
-    Streamlit 앱의 RC 사용성 검토 내용을 그대로 Excel 시트로 생성합니다.
-    (이론적 배경, 상세 해석 과정, 균열 검토 결과 포함)
+    엑셀 워크북에 '사용성 검토' 시트를 생성하고 상세 해석 결과를 작성
     """
-    svc_ws = wb.add_worksheet('사용성 검토')
+    ws = wb.add_worksheet('사용성 검토')
+    base_font = {'font_name': 'Noto Sans KR', 'border': 1, 'valign': 'vcenter', 'bold': True}
 
-    # --- 1. 스타일 정의 (기존 코드와 동일) ---
-    base_font = {'font_name': '맑은 고딕', 'border': 1, 'valign': 'vcenter', 'text_wrap': True}
-    styles = {
-        'title': {'bold': True, 'font_size': 18, 'bg_color': '#1F4E79', 'font_color': 'white', 'align': 'center'},
-        'header_main': {'bold': True, 'font_size': 14, 'bg_color': '#2E75B6', 'font_color': 'white', 'align': 'center'},
-        'header_part': {'bold': True, 'font_size': 16, 'bg_color': '#FFA500', 'font_color': 'black', 'align': 'center'},
-        'header_theory': {'bold': True, 'font_size': 12, 'align': 'center'},
-        'theory_box': {'bg_color': '#F8F9FA', 'border_color': '#DDDDDD'},
-        'formula_box': {'bg_color': '#F0F2F6', 'align': 'center'},
-        'case_special': {'bold': True, 'font_size': 12, 'bg_color': '#2E7D32', 'font_color': 'white', 'align': 'center'},
-        'case_general': {'bold': True, 'font_size': 12, 'bg_color': '#1565C0', 'font_color': 'white', 'align': 'center'},
-        'label': {'font_size': 11, 'align': 'left'},
-        'value': {'bold': True, 'font_size': 11, 'align': 'right', 'num_format': '#,##0.0'},
-        'ok': {'bold': True, 'font_size': 12, 'bg_color': '#D5EDDA', 'font_color': '#155724', 'align': 'center'},
-        'ng': {'bold': True, 'font_size': 12, 'bg_color': '#F8D7DA', 'font_color': '#721C24', 'align': 'center'},
-        'note': {'font_size': 10, 'valign': 'top', 'bg_color': '#F8F9FA'},
+    # --- 서식 정의 (글자 크기 최소 12pt 기준) ---
+    formats = {
+        'main_title': wb.add_format({**base_font,
+            'bold': True, 'font_size': 18, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#FF8C00', 'font_color': '#000000', 'border': 1
+        }),
+        'case_header': wb.add_format({**base_font,
+            'bold': True, 'font_size': 14, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#4472C4', 'font_color': 'white', 'border': 1
+        }),
+        'section_header': wb.add_format({**base_font,
+            'bold': True, 'font_size': 13, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#D9D9D9', 'border': 1
+        }),
+        'step_header': wb.add_format({**base_font,
+            'bold': True, 'font_size': 13, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#E7E6E6', 'border': 1
+        }),
+        'step_title': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter',
+            'fg_color': '#F2F2F2', 'border': 1, 'indent': 1
+        }),
+        'label': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#E7E6E6', 'border': 1
+        }),
+        'formula': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter', 'border': 1,
+            'font_name': 'Noto Sans KR', 'indent': 1
+        }),
+        'calculation': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter', 'border': 1,
+            'font_name': 'Noto Sans KR', 'indent': 1, 'fg_color': '#F0F8FF'
+        }),
+        'explanation': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter', 'border': 1, 'indent': 1
+        }),
+        'result_value': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter', 'border': 1,
+            'indent': 1, 'fg_color': '#F0F8F0'
+        }),
+        'result_value_bold': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter',
+            'border': 1, 'indent': 1, 'fg_color': '#F0F8F0'
+        }),
+        'metric_label': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'border': 1, 'fg_color': '#E7E6E6'
+        }),
+        'metric_value': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'border': 1, 'fg_color': '#FFFF99'
+        }),
+        'metric_note': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'left', 'valign': 'vcenter', 'border': 1,
+            'italic': True, 'font_color': '#666666'
+        }),
+        'no_crack_box': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#6a766d', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'crack_box': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#4e3141', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'case_special_box': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#2E7D32', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'case_general_box': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#1565C0', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'result_success': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#28a745', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'result_error': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#dc3545', 'font_color': 'white', 'border': 1, 'text_wrap': True
+        }),
+        'subheader': wb.add_format({**base_font,
+            'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#E7E6E6', 'border': 1
+        }),
     }
-    # 기본 폰트 및 테두리 일괄 적용
-    formats = {name: wb.add_format({**base_font, **prop}) for name, prop in styles.items()}
-    subscript_format = wb.add_format({'font_name': '맑은 고딕', 'font_script': 2}) # 아래첨자 전용
 
-    # --- 2. 컬럼 너비 설정 ---
-    col_widths = ['A:A', 'B:B', 'C:C', 'D:D', 'E:E', 'F:F', 'G:G']
-    col_values = [4, 28, 12, 4, 28, 12, 4]
-    for i, (col, width) in enumerate(zip(col_widths, col_values)):
-        svc_ws.set_column(col, width)
-        svc_ws.set_column(chr(ord('A') + i + 7) + ':' + chr(ord('A') + i + 7), width) # H열부터 동일하게 적용
+    # --- 컬럼 너비 설정 ---
+    ws.set_column('A:A', 22)    # 항목명
+    ws.set_column('B:G', 18)    # 데이터 영역
+    ws.set_column('H:H', 3)     # 구분선
+    ws.set_column('I:I', 22)    # 항목명
+    ws.set_column('J:O', 18)    # 데이터 영역
+
+    # --- 메인 타이틀 ---
+    ws.merge_range('A1:O1', 'Part 3. 하중 케이스별 상세 해석 및 균열 검토', formats['main_title'])
+    ws.set_row(0, 35)
     
-    # --- 3. 헬퍼 함수 ---
-    def write_rich(r, c, base, sub, unit="", fmt=formats['label']):
-        """아래첨자 텍스트 작성"""
-        svc_ws.write_rich_string(r, c, fmt, base, subscript_format, sub, fmt, unit)
+    ws.merge_range('A2:G2', 'R 데이터 기반 검토', formats['case_header'])
+    ws.merge_range('I2:O2', 'F 데이터 기반 검토', formats['case_header'])
 
-    # --- 4. 시트 내용 작성 ---
-    row = 0
-    max_col = 14
-    
-    # ─── 메인 타이틀 ───
-    svc_ws.merge_range(row, 0, row, max_col-1, '🏗️ RC 사용성 검토: 응력 및 균열 제어', formats['title'])
-    svc_ws.set_row(row, 36)
-    row += 2
-
-    # ─── Part 1 & 2: 이론적 배경 ───
-    ws_theory = wb.add_worksheet('이론적 배경') # 별도 시트로 분리하여 깔끔하게 정리
-    ws_theory.set_column('A:A', 60)
-    ws_theory.set_column('B:B', 60)
-    
-    # --- 이론 시트 내용 작성 ---
-    theory_row = 0
-    ws_theory.merge_range(theory_row, 0, theory_row, 1, 'Part 1. 탄성 이론 기반 응력 해석', formats['header_part'])
-    theory_row +=1
-    
-    # Case I
-    ws_theory.write(theory_row, 0, '🎯 Case Ⅰ: 특수한 경우 (순수 휨)', formats['case_special'])
-    ws_theory.write(theory_row+1, 0, '핵심 원리: C = T (내부 압축력 = 인장력)', formats['header_theory'])
-    ws_theory.write(theory_row+2, 0, '중립축(x) 계산: ½ b x² = n As (d-x)', formats['formula_box'])
-    ws_theory.write(theory_row+3, 0, '응력(fs) 계산: fs = Mo / [ As (d - x/3) ]', formats['formula_box'])
-
-    # Case II
-    ws_theory.write(theory_row, 1, '⚙️ Case Ⅱ: 일반적인 경우 (축력+휨)', formats['case_general'])
-    ws_theory.write(theory_row+1, 1, '핵심 원리: 축력/모멘트 동시 평형', formats['header_theory'])
-    ws_theory.write(theory_row+2, 1, '축력: P₀ = C - T\n모멘트: M₀ = C(h/2-x/3) + T(d-h/2)', formats['formula_box'])
-    ws_theory.write(theory_row+3, 1, '해법: 비선형 연립방정식으로 수치해석 필요', formats['formula_box'])
-    theory_row += 5
-
-    ws_theory.merge_range(theory_row, 0, theory_row, 1, 'Part 2. 휨균열 제어를 위한 철근 간격 검토', formats['header_part'])
-    theory_row += 1
-    ws_theory.write(theory_row, 0, '최외단 철근응력 (fst) 산정', formats['header_theory'])
-    ws_theory.write(theory_row+1, 0, 'fst = fs · (h - dc - x) / (d - x)', formats['formula_box'])
-    ws_theory.write(theory_row, 1, '최대 허용간격 (s) 산정 [KDS 기준]', formats['header_theory'])
-    ws_theory.write(theory_row+1, 1, 's ≤ min [ 375(210/fst) - 2.5Cc ,  300(210/fst) ]', formats['formula_box'])
-    
-    # ─── Part 3: 상세 해석 및 균열 검토 ───
-    svc_ws.merge_range(row, 0, row, max_col-1, 'Part 3. 하중 케이스별 상세 해석 및 균열 검토', formats['header_part'])
-    svc_ws.set_row(row, 28)
-    row += 1
-
-    datasets = {'R': {'data': R, 'col_offset': 0, 'name': '이형철근'},
-                'F': {'data': F, 'col_offset': 7, 'name': '중공철근'}}
-    
-    # R과 F 데이터의 상세 결과를 그리는 내부 함수
-    def render_analysis_block(start_row, col_offset, rebar_name, data_source, case_idx):
-        r = start_row
-        c = col_offset
-        
-        fs, x = data_source.fs[case_idx], data_source.x[case_idx]
-        P0, M0 = In.P0[case_idx], In.M0[case_idx]
-        
-        # 케이스 헤더
-        case_format = formats['case_special'] if P0 == 0 else formats['case_general']
-        case_title = f"{'🎯' if P0 == 0 else '⚙️'} {rebar_name} {num_symbols[case_idx]}번 검토"
-        svc_ws.merge_range(r, c, r, c + 5, case_title, case_format)
-        svc_ws.set_row(r, 22)
-        r += 1
-
-        # A. 탄성 해석
-        svc_ws.merge_range(r, c, r, c+5, '🔬 A. 탄성 해석 과정', formats['header_main'])
-        r += 1
-        write_rich(r, c, '하중조건 P', '₀', f' = {P0:,.1f} kN', fmt=formats['label'])
-        write_rich(r, c, ' / M', '₀', f' = {M0:,.1f} kN·m', fmt=formats['label'])
-        r += 1
-        write_rich(r, c+1, '중립축 x = ', '', f'{x:.1f} mm', fmt=formats['value'])
-        write_rich(r, c+1, '철근응력 f', 's', f' = {fs:.1f} MPa', fmt=formats['value'])
-        r += 2
-
-        # B. 휨균열 제어 검토
-        svc_ws.merge_range(r, c, r, c+5, '📏 B. 휨균열 제어 검토', formats['header_main'])
-        r += 1
-
-        fst = fs # 1단 배근 가정
-        s1 = 375 * (210 / fst) - 2.5 * In.Cc if fst > 0 else float('inf')
-        s2 = 300 * (210 / fst) if fst > 0 else float('inf')
-        s_final = min(s1, s2)
-        is_ok = In.sb[0] <= s_final
-        
-        write_rich(r, c, '최외단 응력 f', 'st', f' = {fst:.1f} MPa', fmt=formats['label'])
-        r += 1
-        write_rich(r, c, '허용간격 s', '1', f' = {s1:.1f} mm', fmt=formats['label'])
-        write_rich(r, c, ' / s', '2', f' = {s2:.1f} mm', fmt=formats['label'])
-        r += 1
-        write_rich(r, c, '최종 허용간격 s', 'allow', f' = {s_final:.1f} mm', fmt=formats['label'])
-        write_rich(r+1, c, '실제 배근간격 s', 'actual', f' = {In.sb[0]:.1f} mm', fmt=formats['label'])
-        r += 2
-
-        # 최종 판정
-        result_text = f"✅ O.K. ({In.sb[0]:.1f} ≤ {s_final:.1f})" if is_ok else f"❌ N.G. ({In.sb[0]:.1f} > {s_final:.1f})"
-        result_format = formats['ok'] if is_ok else formats['ng']
-        svc_ws.merge_range(r, c, r, c+5, result_text, result_format)
-        svc_ws.set_row(r, 24)
-        r += 2 # 다음 블록을 위한 간격
-        return r
-
+    # --- 케이스별 상세 결과 렌더링 ---
     num_symbols = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]
-    current_row_r, current_row_f = row, row # 각 컬럼의 행 위치를 독립적으로 관리
+    current_row = 2
 
     for i in range(len(In.P0)):
-        # R 데이터 (이형철근) 블록 렌더링
-        next_row_r = render_analysis_block(current_row_r, datasets['R']['col_offset'], datasets['R']['name'], R, i)
-        # F 데이터 (중공철근) 블록 렌더링
-        next_row_f = render_analysis_block(current_row_f, datasets['F']['col_offset'], datasets['F']['name'], F, i)
+        # 좌측: R 데이터 검토
+        rows_r = _render_case_to_excel(ws, current_row, 0, R, In, i, num_symbols[i], formats)
         
-        # 각 컬럼의 행 위치 업데이트
-        current_row_r = next_row_r
-        current_row_f = next_row_f
+        # 우측: F 데이터 검토
+        rows_f = _render_case_to_excel(ws, current_row, 8, F, In, i, num_symbols[i], formats)
 
-    return svc_ws
+        # 다음 케이스를 위한 행 위치 조정
+        current_row += max(rows_r, rows_f) + 1
+
+    return ws

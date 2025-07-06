@@ -233,8 +233,8 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def create_strength_section():
         """기둥 강도 검토 섹션 전체 생성"""
         strength_spec_full = {
-            "Pu":    ("P_u",    "[kN]",   [2000.0, 3000.0, 6000.0], 200.0),
-            "Mu":    ("M_u",    "[kN·m]", [220.0,  250.0,  300.0],  20.0),
+            "Pu":    ("P_u",    "[kN]",   [1000.0, 2000.0, 3000.0], 100.0),
+            "Mu":    ("M_u",    "[kN·m]", [120.0,  150.0,  180.0],  10.0),
             "검토":  ("검토",   "",       [0.0,    0.0,    0.0],    0.0),  # placeholder
         }
         strength_spec_items = [
@@ -249,7 +249,7 @@ def create_column_ui(In, sb, side_border="", h4=""):
             'button_key'        : 'add_row_btn',
             'add_callback'      : add_strength_row,
             'show_checkbox'     : True,
-            'attrs'             : ['Pu', 'Mu', 'safe_RC', 'safe_FRP', 'Pd_RC', 'Pd_FRP', 'Md_RC', 'Md_FRP'],
+            'attrs'             : ['Pu', 'Mu', 'safe_RC', 'safe_FRP', 'Pd_RC', 'Pd_FRP', 'Md_RC', 'Md_FRP', 'c_RC', 'c_FRP'],
             'row_count'         : st.session_state.row_count,
             'col_width'         : [0.3, 1.2, 1, 0.8, 1],
             'spec_items'        : strength_spec_items,
@@ -346,8 +346,8 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def create_serviceability_section():
         """Serviceability 검토 섹션 전체 생성"""
         serviceability_spec_full = {
-            "P0":   ("P_0", "[kN]",   [0.0, 100.0, 200.0], 10.0),
-            "M0":   ("M_0", "[kN·m]", [100.0,  150.0,  200.0],  10.0),
+            "P0":   ("P_0", "[kN]",   [0.0, 200.0, 500.0], 10.0),
+            "M0":   ("M_0", "[kN·m]", [40.0,  100.0,  150.0],  10.0),
             "검토": ("검토", "",      [0.0,    0.0,    0.0],   0.0),  # placeholder
         }
         serviceability_spec_items = [

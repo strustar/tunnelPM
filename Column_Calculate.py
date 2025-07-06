@@ -16,16 +16,7 @@ def Cal(In, Reinforcement_Type):
     PM_Type = In.PM_Type
 
     [be, height, D] = [In.be, In.height, In.D]
-    [fck, fy, f_fu, Ec, Es, Ef, Es_hollow, fy_hollow] = [
-        In.fck,
-        In.fy,
-        In.f_fu,
-        In.Ec,
-        In.Es,
-        In.Ef,
-        In.Es_hollow,
-        In.fy_hollow,
-    ]
+    [fck, fy, f_fu, Ec, Es, Ef, Es_hollow, fy_hollow] = [In.fck, In.fy, In.f_fu, In.Ec, In.Es, In.Ef, In.Es_hollow, In.fy_hollow]
     [Layer, dia, dc, nh, nb, nD, sb, dia1, dc1] = [In.Layer, In.dia, In.dc, In.nh, In.nb, In.nD, In.sb, In.dia1, In.dc1]
     # Input Data
     [ep_y, ep_fu, ep_y_hollow] = [fy / Es, f_fu / Ef, fy_hollow / Es_hollow]
@@ -52,18 +43,19 @@ def Cal(In, Reinforcement_Type):
             beta = 0.4
 
         [alpha, beta] = [round(alpha * 100) / 100, round(beta * 100) / 100]
-        beta1 = 2 * beta
+        beta1 = 2 * beta        
         eta = alpha / beta1
         eta = round(eta * 100) / 100
         if fck == 50:
             eta = 0.97
         if fck == 80:
             eta = 0.87
-    else:
-        [ep_cu, eta] = [0.003, 1.0]
-        beta1 = 0.85 if fck <= 28 else 0.85 - 0.007 * (fck - 28)
-        if beta1 < 0.65:
-            beta1 = 0.65
+
+    # else:
+    #     [ep_cu, eta] = [0.003, 1.0]
+    #     beta1 = 0.85 if fck <= 28 else 0.85 - 0.007 * (fck - 28)
+    #     if beta1 < 0.65:
+    #         beta1 = 0.65
 
     if 'Tied' in Column_Type:
         [alpha, phi0] = [0.80, 0.65]
@@ -92,14 +84,17 @@ def Cal(In, Reinforcement_Type):
             #         if (i > 0 and i < nh[L] - 1) and (j > 0 and j < nb[L] - 1):
             #             continue
             #         nst[L] = nst[L] + 1
-
+    # st.write(nst)
+    Ast_tension = np.multiply(nst, Ast)
+    Ast_compression = np.multiply(nst1, Ast1)
     Ast_total = np.multiply(nst, Ast) + np.multiply(nst1, Ast1)
     rho = np.sum(Ast_total) / Ag
     if 'Rectangle' in Section_Type:
         A1 = 0
         A2 = 0
-
+    # st.write(Layer, ni)
     dsi, Asi = np.zeros((Layer, np.max(ni))), np.zeros((Layer, np.max(ni)))  # initial_rotation = 0 for Circle Section
+    # st.write(ni, Layer)
     dsi[0, :2] = [dc1[0], height - dc[0]]
     # nb = be / sb[0]
     Asi[0, :2] = [Ast1[0] * nst1[0], Ast[0] * nst[0]]
@@ -200,25 +195,7 @@ def Cal(In, Reinforcement_Type):
                 c = d * ep_cu / (ep_cu + eps)
                 if 'Rectangle' in Section_Type:
                     bhD = [hD, be, height]
-                [P, M] = RC_and_AASHTO(
-                    Section_Type,
-                    Reinforcement_Type,
-                    beta1,
-                    c,
-                    eta,
-                    fck,
-                    Layer,
-                    ni,
-                    ep_si,
-                    ep_cu,
-                    dsi,
-                    fsi,
-                    Es,
-                    fy,
-                    Fsi,
-                    Asi,
-                    *bhD,
-                )
+                [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer,  ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
 
             if zz == 1:
                 cc[z1] = c
@@ -337,25 +314,7 @@ def Cal(In, Reinforcement_Type):
 
                 # 첫 번째 값 계산
                 bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                [P_init, M_init] = RC_and_AASHTO(
-                    Section_Type,
-                    Reinforcement_Type,
-                    beta1,
-                    c,
-                    eta,
-                    fck,
-                    Layer,
-                    ni,
-                    ep_si,
-                    ep_cu,
-                    dsi,
-                    fsi,
-                    Es,
-                    fy,
-                    Fsi,
-                    Asi,
-                    *bhD,
-                )
+                [P_init, M_init] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer,  ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
                 temp[1] = P_init  # Pnn=0이므로 P_init 자체가 오차
 
                 # 방향 결정
@@ -366,25 +325,7 @@ def Cal(In, Reinforcement_Type):
 
                 for k1 in np.arange(2, 1000):
                     bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                    [P, M] = RC_and_AASHTO(
-                        Section_Type,
-                        Reinforcement_Type,
-                        beta1,
-                        c,
-                        eta,
-                        fck,
-                        Layer,
-                        ni,
-                        ep_si,
-                        ep_cu,
-                        dsi,
-                        fsi,
-                        Es,
-                        fy,
-                        Fsi,
-                        Asi,
-                        *bhD,
-                    )
+                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer,  ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
 
                     temp[k1] = P  # Pnn=0이므로 P 자체가 오차
 
@@ -421,25 +362,7 @@ def Cal(In, Reinforcement_Type):
                 # 기존 코드 (Pnn != 0인 경우)
                 for k1 in np.arange(2, 1000):
                     bhD = [hD, be, height] if 'Rectangle' in Section_Type else [hD, D]
-                    [P, M] = RC_and_AASHTO(
-                        Section_Type,
-                        Reinforcement_Type,
-                        beta1,
-                        c,
-                        eta,
-                        fck,
-                        Layer,
-                        ni,
-                        ep_si,
-                        ep_cu,
-                        dsi,
-                        fsi,
-                        Es,
-                        fy,
-                        Fsi,
-                        Asi,
-                        *bhD,
-                    )
+                    [P, M] = RC_and_AASHTO(Section_Type, Reinforcement_Type, beta1, c, eta, fck, Layer,  ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, *bhD)
 
                     temp[k1] = Pnn - P
                     sgn1 = np.sign(temp[k1 - 1])
@@ -555,6 +478,8 @@ def Cal(In, Reinforcement_Type):
         [PM.A1, PM.A2] = [A1, A2]
     PM.Ag = Ag
     PM.Ast_total = Ast_total
+    PM.Ast_tension = Ast_tension
+    PM.Ast_compression = Ast_compression
     PM.nst = nst
     PM.dsi = dsi
     PM.rho = rho
