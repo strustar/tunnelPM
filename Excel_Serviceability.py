@@ -330,11 +330,11 @@ def create_serviceability_sheet(wb, In, R, F):
     ws.set_column('J:O', 18)    # 데이터 영역
 
     # --- 메인 타이틀 ---
-    ws.merge_range('A1:O1', 'Part 3. 하중 케이스별 상세 해석 및 균열 검토', formats['main_title'])
-    ws.set_row(0, 35)
+    ws.merge_range('A1:O1', '하중 케이스별 상세 균열 검토', formats['main_title'])
+    ws.set_row(0, 40)
     
-    ws.merge_range('A2:G2', 'R 데이터 기반 검토', formats['case_header'])
-    ws.merge_range('I2:O2', 'F 데이터 기반 검토', formats['case_header'])
+    ws.merge_range('A2:G2', '이형철근', formats['case_header'])
+    ws.merge_range('I2:O2', '중공철근', formats['case_header'])
 
     # --- 케이스별 상세 결과 렌더링 ---
     num_symbols = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]

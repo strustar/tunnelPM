@@ -7,7 +7,7 @@ def create_shear_sheet(wb, In, R):
     Excel 전단설계 보고서 - 가독성 최적화 버전
     """
 
-    shear_ws = wb.add_worksheet('전단설계 최적화 보고서')
+    shear_ws = wb.add_worksheet('전단 검토')
 
     # ─── 최적화된 색상 팔레트 (가독성 및 대비도 개선) ─────────────────────────
     colors = {
