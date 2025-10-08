@@ -68,7 +68,7 @@ def create_column_sheet(wb, In, R, F):
                       'font_color': 'white', 'align': 'center'},
         'label': {**base_font, 'font_size': 12, 'bold': True, 'align': 'left'},
         'value': {**base_font, 'bold': True, 'font_size': 12, 'align': 'center'},
-        'number': {**base_font, 'bold': True, 'font_size': 12, 'num_format': '#,##0.000', 
+        'number': {**base_font, 'bold': True, 'font_size': 12, 'num_format': '#,##0.0', 
                   'align': 'center'},
         'unit': {**base_font, 'font_size': 12, 'align': 'center', 'bold': True},
         'combo': {**base_font, 'bold': True, 'font_size': 12, 'bg_color': '#fef3c7', 
