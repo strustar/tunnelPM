@@ -276,7 +276,7 @@ def Sidebar():
 
         # --- 프리셋 사용법 (넘침 방지 래퍼 포함) ---
         st.markdown("---")
-        with st.expander("ℹ️ 프리셋 사용법", expanded=False):
+        with sb.expander("ℹ️ 프리셋 사용법", expanded=False):
             st.markdown(f"""
 <div class="sidebar-wrap">
 
