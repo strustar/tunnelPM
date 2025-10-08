@@ -159,6 +159,13 @@ def initialize_material_properties():
     if "run_calculation" not in st.session_state:
         st.session_state.run_calculation = True
 
+def export_preset_bytes(preset_name: str) -> bytes:
+    """현재 사이드바 입력 상태를 JSON 바이트로 만들어 바로 다운로드에 사용"""
+    snap = _snapshot_current_values()
+    snap['preset_name'] = preset_name
+    return json.dumps(snap, indent=2, ensure_ascii=False).encode('utf-8')
+
+
 # ============================================
 # 사이드바 본체
 # ============================================
@@ -233,53 +240,76 @@ def Sidebar():
     # 💾 프리셋 관리 (불러오기/저장)
     # ================================
     with sb.expander('💾 **프리셋 관리**', expanded=False):
-        st.caption(f"📁 저장 경로: `{_preset_dir()}`")
+        # (선택) 서버 경로 안내는 참고용
+        st.caption(f"📁 서버 저장 경로(참고): `{_preset_dir()}`")
 
         tabs = st.tabs(['📥 불러오기', '💾 저장'])
 
         # --- 불러오기 ---
         with tabs[0]:
-            st.info("아래 목록에서 프리셋을 선택하신 뒤 **불러오기**를 눌러 주세요.")
+            st.info("① PC에서 .json 업로드 하거나, ② (선택) 서버에 남아있는 목록에서 불러오세요.")
             st.markdown("---")
+
+            # ① 업로드로 불러오기 (로컬 파일)
+            up = st.file_uploader("프리셋 파일 업로드 (.json)", type=["json"], key="preset_uploader")
+            if up is not None:
+                try:
+                    pdata = json.load(up)
+                    if load_preset_from_dict(pdata):
+                        st.success(f"✅ 업로드한 '{pdata.get('preset_name','(이름없음)')}' 프리셋을 불러왔습니다.")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"프리셋 업로드/로드 실패: {e}")
+
+            st.markdown("---")
+
+            # ② (선택) 서버 폴더에서 불러오기
             files = list_preset_files()
             if files:
                 display_names = [p.stem for p in files]  # .json 숨김
-                sel = st.selectbox("저장된 프리셋 선택", display_names, key='preset_select_from_folder')
-                if st.button("✅ 불러오기", use_container_width=True, key='btn_load_from_folder'):
+                sel = st.selectbox("서버에 남아있는 프리셋 선택", display_names, key='preset_select_from_folder')
+                if st.button("✅ 서버에서 불러오기", use_container_width=True, key='btn_load_from_folder'):
                     fp = str(files[display_names.index(sel)])
                     if load_preset_from_file(fp):
                         st.success(f"✅ '{sel}' 프리셋을 불러왔습니다.")
                         st.rerun()
             else:
-                st.info("저장된 프리셋 파일이 없습니다. 먼저 저장해 주세요.")
-                
-            # --- 저장 ---
-            with tabs[1]:
-                preset_name = st.text_input(
-                    '프리셋 이름 (기본값 권장: 프리셋_N)',
-                    value=st.session_state['new_preset_name'],
-                    key='new_preset_name'
+                st.caption("서버에 저장된 프리셋 파일이 없습니다. (업로드 기능을 사용해 주세요)")
+
+        # --- 저장 ---
+        with tabs[1]:
+            preset_name = st.text_input(
+                '프리셋 이름(파일명, 확장자 자동 .json)',
+                value=st.session_state.get('new_preset_name', next_preset_name()),
+                key='new_preset_name',
+                placeholder='예: 프리셋_1'
+            )
+
+            col_save = st.columns(2)
+            with col_save[0]:
+                # ✅ 내 PC로 바로 저장 (권장)
+                st.download_button(
+                    label="💾 내 PC로 저장(.json)",
+                    data=export_preset_bytes(preset_name or "preset"),
+                    file_name=f"{(preset_name or 'preset')}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    type="primary"
                 )
 
-                if st.button('💾 저장', use_container_width=True, type='primary', key='save_btn_simple'):
+            with col_save[1]:
+                # (선택) 서버 폴더에도 저장할 수 있게 유지
+                if st.button('🗄️ 서버 폴더에 저장', use_container_width=True, key='save_btn_simple'):
                     name = (preset_name or "").strip()
                     if not name:
                         st.error('❌ 프리셋 이름을 입력해 주세요.')
                     else:
                         if save_preset_to_file(name):
-                            st.success(f"💾 '{name}' 프리셋을 생성했습니다.")
+                            st.success(f"🗄️ 서버에 '{name}.json' 저장 완료")
+                            # 다음 기본 이름 자동 증가
                             st.session_state['_bump_preset_name'] = True
-                            
-                            # --- ✨ 다운로드 버튼 추가 ✨ ---
-                            file_path = make_preset_filepath(name)
-                            with open(file_path, "rb") as fp:
-                                st.download_button(
-                                    label="📥 생성된 프리셋 파일 다운로드",
-                                    data=fp,
-                                    file_name=f"{name}.json",
-                                    mime="application/json"
-                                )
                             st.rerun()
+
         # --- 프리셋 사용법 (넘침 방지 래퍼 포함) ---
         st.markdown("---")
         with sb.expander("ℹ️ 프리셋 사용법", expanded=False):
