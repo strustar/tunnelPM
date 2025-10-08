@@ -58,8 +58,7 @@ if In.should_run:
     
     ### 사용성 검토용    
 
-    tabs = st.tabs(['📈 PM 상관도 📊', '🏛️ 기둥 강도 검토 🏗️', '🧱 전단 검토 ✂️', '📐 사용성 검토 📏', '📊 엑셀 저장 📥'],
-default='📈 PM 상관도 📊')
+    tabs = st.tabs(['📈 PM 상관도 📊', '🏛️ 기둥 강도 검토 🏗️', '🧱 전단 검토 ✂️', '📐 사용성 검토 📏', '📊 엑셀 저장 📥'], default='📈 PM 상관도 📊')
     with tabs[0]:
         Column_Result.Fig(In, R, F)    
     with tabs[1]:
