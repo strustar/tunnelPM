@@ -35,7 +35,7 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     row = start_row
     
     # 데이터 추출
-    fs_case, x_case = data.fs[i], data.x[i]
+    fs_case, x_case = data.fss[i], data.x[i]
     P0_case, M0_case = In.P0[i], In.M0[i]
 
     # 케이스 헤더
@@ -63,19 +63,19 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     fck = float(getattr(In, 'fck', 24))
     
     ws.write(row, start_col, "계산", formats['label'])
-    calculation_text = f"{M0_case*1e6:.0f} × {y:.1f} / {I:.0f} - {P0_case*1000:.0f} / {A:.0f} = {stress_term:.3f} MPa"
+    calculation_text = f"{M0_case*1e6:.0f} × {y:.1f} / {I:.0f} - {P0_case*1000:.0f} / {A:.0f} = {stress_term:.1f} MPa"
     ws.merge_range(row, start_col + 1, row, start_col + 6, calculation_text, formats['calculation'])
     row += 1
     
     ws.write(row, start_col, "한계값", formats['label'])
-    limit_text = f"0.63 × √{fck:.1f} = 0.63 × {math.sqrt(fck):.3f} = {crack_limit:.3f} MPa"
+    limit_text = f"0.63 × √{fck:.1f} = 0.63 × {math.sqrt(fck):.1f} = {crack_limit:.1f} MPa"
     ws.merge_range(row, start_col + 1, row, start_col + 6, limit_text, formats['calculation'])
     row += 1
 
     # 균열 판정 결과
     if not is_cracked:
         ws.merge_range(row, start_col, row + 1, start_col + 6, 
-                      f"✅ 비균열 단면\n{stress_term:.3f} MPa < {crack_limit:.3f} MPa\n🎉 균열 검토 불필요", 
+                      f"✅ 비균열 단면\n{stress_term:.1f} MPa < {crack_limit:.1f} MPa\n🎉 균열 검토 불필요", 
                       formats['no_crack_box'])
         ws.set_row(row, 50)
         row += 2
@@ -87,7 +87,7 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
 
     # 균열 단면인 경우
     ws.merge_range(row, start_col, row + 1, start_col + 6, 
-                  f"⚠️ 균열 단면\n{stress_term:.3f} MPa ≥ {crack_limit:.3f} MPa\n🔍 균열 검토 필요", 
+                  f"⚠️ 균열 단면\n{stress_term:.1f} MPa ≥ {crack_limit:.1f} MPa\n🔍 균열 검토 필요", 
                   formats['crack_box'])
     ws.set_row(row, 50)
     row += 2

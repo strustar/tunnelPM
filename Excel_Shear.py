@@ -424,7 +424,7 @@ def create_shear_sheet(wb, In, R):
         shear_ws.write(row, 2, '축력 영향 계수', formats['calc_content'])
         formula_text = f'P증가 = 1 + (Pu / (14 × Ag))\n= 1 + ({format_number(r["Pu"]*1000, 0)} / (14 × {format_number(Ag, 0)}))'
         shear_ws.merge_range(row, 3, row, 8, formula_text, formats['formula_wide'])
-        shear_ws.merge_range(row, 9, row, 11, f'{r["p_factor"]:.3f}', formats['result_wide'])
+        shear_ws.merge_range(row, 9, row, 11, f'{r["p_factor"]:.1f}', formats['result_wide'])
         shear_ws.merge_range(row, 12, row, 15, '축력(Pu)이 단면(Ag)에 미치는 영향을 보정하는 계수', formats['calc_content'])
         shear_ws.set_row(row, 50)
         row += 1
@@ -432,7 +432,7 @@ def create_shear_sheet(wb, In, R):
         # 2단계: 콘크리트 설계 전단강도
         shear_ws.write(row, 1, '2', formats['step_number'])
         shear_ws.write(row, 2, '콘크리트 전단강도', formats['calc_content'])
-        formula_text = f'φVc = φv × (1/6 × P증가 × λ × √fck × bw × d)\n= {phi_v} × (1/6 × {r["p_factor"]:.3f} × {lamda} × {np.sqrt(fck):.2f} × {bw} × {d})'
+        formula_text = f'φVc = φv × (1/6 × P증가 × λ × √fck × bw × d)\n= {phi_v} × (1/6 × {r["p_factor"]:.1f} × {lamda} × {np.sqrt(fck):.1f} × {bw} × {d})'
         shear_ws.merge_range(row, 3, row, 8, formula_text, formats['formula_wide'])
         shear_ws.merge_range(row, 9, row, 11, f'{format_N_to_kN(r["phi_Vc_N"])} kN', formats['result_wide'])
         shear_ws.merge_range(row, 12, row, 15, '콘크리트 기본 전단강도에 강도감소계수와 축력 보정을 적용', formats['calc_content'])

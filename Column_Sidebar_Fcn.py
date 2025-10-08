@@ -1,3 +1,4 @@
+# Column_Sidebar_Fcn.py
 import streamlit as st
 
 def create_column_ui(In, sb, side_border="", h4=""):
@@ -134,9 +135,12 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def render_input_field(col, attr, defaults, step, row_index, section_key, row_count):
         """입력 필드 렌더링 (공통)"""
         default_val = get_default_value(attr, row_index, defaults)
+        # 🔽 여기 한 줄 추가: 강도 검토 섹션의 Mu만 최소값 2        
+        min_val = 0.0 if (section_key == 'strength' and attr in ['Mu', 'Pu']) else 0.0
+
         val = col.number_input(
             label="",
-            min_value=0.0,
+            min_value=float(min_val),   # ← 적용
             value=default_val,
             step=step,
             format="%.0f",

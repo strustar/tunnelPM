@@ -227,7 +227,69 @@ def check_column(In, R, F):
             Pu_values, Mu_values = getattr(In, 'Pu', []), getattr(In, 'Mu', [])
             if hasattr(Pu_values, 'tolist'): Pu_values = Pu_values.tolist()
             if hasattr(Mu_values, 'tolist'): Mu_values = Mu_values.tolist()
+            
+            Pu, Mu = Pu_values[case_idx], Mu_values[case_idx]
 
+            # --- Special Handling for Pu=0 or Mu=0 ---
+            is_pure_bending = np.isclose(Pu, 0)
+            is_pure_compression = np.isclose(Mu, 0)
+
+            if is_pure_bending or is_pure_compression:
+                if is_pure_bending: # Pu = 0
+                    c_assumed = getattr(PM_obj, 'c', [0]*6)[5]
+                    phiPn = getattr(PM_obj, 'Pd', [0]*6)[5]
+                    phiMn = getattr(PM_obj, 'Md', [0]*6)[5]
+                    e_actual = np.inf
+                    condition_str = "순수 휨 상태 (P<sub>u</sub> = 0)"
+                else: # Mu = 0
+                    c_assumed = getattr(PM_obj, 'c', [0]*6)[0]
+                    phiPn = getattr(PM_obj, 'Pd', [0]*6)[0]
+                    phiMn = getattr(PM_obj, 'Md', [0]*6)[0]
+                    e_actual = 0
+                    condition_str = "순수 압축 상태 (M<sub>u</sub> = 0)"
+
+                p_inequality = "≤" if Pu <= phiPn else ">"
+                p_status = "O.K." if Pu <= phiPn else "N.G."
+                p_color = "ok" if Pu <= phiPn else "ng"
+                
+                m_inequality = "≤" if Mu <= phiMn else ">"
+                m_status = "O.K." if Mu <= phiMn else "N.G."
+                m_color = "ok" if Mu <= phiMn else "ng"
+
+                safety_factor = np.sqrt(phiPn**2 + phiMn**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 0 else np.inf
+                sf_status = "안전" if safety_factor >= 1.0 else "위험"
+                sf_color = "ok" if safety_factor >= 1.0 else "ng"
+
+                html = f"""
+                <div class="detailed-calc-container">
+                    <div style="font-size: 1.3em; font-weight: 800; color: #1e40af; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; border: 2px solid #3b82f6;">
+                        [하중조합 LC-{case_idx+1} 상세 계산 과정]
+                    </div>
+                    <br>
+                    <b>1. 기본 정보 및 설계계수</b>
+                    <ul>
+                        <li><b>특별 조건:</b> <code>{condition_str}</code></li>
+                        <li>작용 하중: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN</code>, <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m</code></li>
+                        <li>결정된 중립축: <code>c = {c_assumed:,.1f} mm</code> (사전 계산값)</li>
+                    </ul><hr>
+                    <b>6. 최종 검토 및 안전성 평가</b>
+                    <ul>
+                        <li><b>강도조건 검토:</b>
+                            <ul>
+                                <li>축력 검토: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN {p_inequality} φ<span class='math-expr'>P<sub>n</sub></span> = {phiPn:,.1f} kN</code> <span class="{p_color}"><b>∴ {p_status}</b></span></li>
+                                <li>휨강도 검토: <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m {m_inequality} φ<span class='math-expr'>M<sub>n</sub></span> = {phiMn:,.1f} kN·m</code> <span class="{m_color}"><b>∴ {m_status}</b></span></li>
+                                <li><b>PM 상관도 교점 안전율:</b> <code>S.F. = {safety_factor:.1f}</code> <span class="{sf_color}"><b>({sf_status})</b></span></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                <br><br>
+                """
+                
+                return html
+                
+
+            # --- Original Full Calculation for other cases ---
             Reinforcement_Type = 'hollow' if material_type == '중공철근' else 'RC'
 
             if material_type == '이형철근':
@@ -235,15 +297,15 @@ def check_column(In, R, F):
                 e_min, fy, Es = getattr(R, 'e', [0,20,20])[1], getattr(In, 'fy', 400.0), getattr(In, 'Es', 200000.0)
             else: # 중공철근
                 c_values, phiPn_values, phiMn_values, SF_values = getattr(In, 'c_FRP', []), getattr(In, 'Pd_FRP', []), getattr(In, 'Md_FRP', []), getattr(In, 'safe_FRP', [])
-                e_min, fy, Es = getattr(F, 'e', [0,20,20])[1], getattr(In, 'fy_hollow', 800.0), getattr(In, 'Es_hollow', 200000.0)  # 중공철근 항복강도 800 MPa
+                e_min, fy, Es = getattr(F, 'e', [0,20,20])[1], getattr(In, 'fy_hollow', 800.0), getattr(In, 'Es_hollow', 200000.0)
             
             if hasattr(c_values, 'tolist'): c_values = c_values.tolist()
             if hasattr(phiPn_values, 'tolist'): phiPn_values = phiPn_values.tolist()
             if hasattr(phiMn_values, 'tolist'): phiMn_values = phiMn_values.tolist()
             if hasattr(SF_values, 'tolist'): SF_values = SF_values.tolist()
 
-            Pu, Mu, c_assumed, phiPn, phiMn, SF = Pu_values[case_idx], Mu_values[case_idx], c_values[case_idx], phiPn_values[case_idx], phiMn_values[case_idx], SF_values[case_idx]
-            e_actual = (Mu / Pu) * 1000 if Pu != 0 else 0
+            c_assumed, phiPn, phiMn, SF = c_values[case_idx], phiPn_values[case_idx], phiMn_values[case_idx], SF_values[case_idx]
+            e_actual = (Mu / Pu) * 1000 if Pu != 0 else np.inf
 
             # --- 2. 계산을 위한 재료 및 단면 속성 설정 (사용자 제공 로직 통합) ---
             h, b, fck = getattr(In, 'height', 300), getattr(In, 'be', 1000), getattr(In, 'fck', 40.0)
@@ -282,12 +344,11 @@ def check_column(In, R, F):
             Layer_in, dia, dc, nh, nb, nD, sb, dia1, dc1 = In.Layer, In.dia, In.dc, In.nh, In.nb, In.nD, In.sb, In.dia1, In.dc1
             
             Layer = 1
-            ni = [2] # 압축측, 인장측 철근 그룹
+            ni = [2]
             
             nst = b / sb[0]
             nst1 = b / sb[0]
             
-            # 중공철근의 경우 단면적 절반 적용
             area_factor = 0.5 if 'hollow' in Reinforcement_Type else 1.0
             
             Ast = [np.pi * d**2 / 4 * area_factor for d in dia]
@@ -305,36 +366,34 @@ def check_column(In, R, F):
             [Pn, Mn] = RC_and_AASHTO('Rectangle', Reinforcement_Type, beta1, c_assumed, eta, fck, Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi, h, b, h)
             e_calc = (Mn * 1000 / Pn) if Pn != 0 else 0
             equilibrium_diff = abs(e_calc - e_actual)
-            equilibrium_check = equilibrium_diff / max(abs(e_actual), 1) <= 0.01  # 1% 이하 오차 허용
+            equilibrium_check = equilibrium_diff / max(abs(e_actual), 1) <= 0.01
 
             # --- 4. 계산 과정에 필요한 중간값 추출 ---
             a = beta1 * c_assumed
-            Ac = min(a, h) * b  # 콘크리트 압축 면적
-            Cc = eta * (0.85 * fck) * Ac / 1000  # 콘크리트 압축력
-            y_bar = (h / 2) - (a / 2) if a < h else 0  # 콘크리트 압축력 중심
+            Ac = min(a, h) * b
+            Cc = eta * (0.85 * fck) * Ac / 1000
+            y_bar = (h / 2) - (a / 2) if a < h else 0
             
-            Cs_force = Fsi[0, 0] # 압축측 철근 힘
-            Ts_force = Fsi[0, 1] # 인장측 철근 힘
+            Cs_force = Fsi[0, 0]
+            Ts_force = Fsi[0, 1]
             
-            # 모멘트 계산 상세 과정
-            Cc_moment = Cc * y_bar  # 콘크리트 압축력 모멘트
-            Cs_moment = Cs_force * (h/2 - dsi[0, 0])  # 압축철근 모멘트
-            Ts_moment = Ts_force * (h/2 - dsi[0, 1])  # 인장철근 모멘트
+            Cc_moment = Cc * y_bar
+            Cs_moment = Cs_force * (h/2 - dsi[0, 0])
+            Ts_moment = Ts_force * (h/2 - dsi[0, 1])
             
-            # 철근 단면적 계산
-            As1_calc = Ast1[0] * nst1  # 압축측 철근 단면적
-            As_calc = Ast[0] * nst  # 인장측 철근 단면적
+            As1_calc = Ast1[0] * nst1
+            As_calc = Ast[0] * nst
 
-            # --- 5. 강도감소계수(φ) 계산 (통합된 로직) ---
-            dt = dsi[0, 1] # 인장측 철근 깊이
+            # --- 5. 강도감소계수(φ) 계산 ---
+            dt = dsi[0, 1]
             eps_t = ep_cu * (dt - c_assumed) / c_assumed if c_assumed > 0 else 0
             eps_y = fy / Es
             phi_factor, phi_basis = 0.65, ""
 
             if 'RC' in Reinforcement_Type or 'hollow' in Reinforcement_Type:
                 phi0 = 0.70 if 'Spiral' in Column_Type else 0.65
-                ep_tccl = eps_y # 압축지배 한계 변형률
-                ep_ttcl = 0.005 if fy < 400 else 2.5 * eps_y # 인장지배 한계 변형률
+                ep_tccl = eps_y
+                ep_ttcl = 0.005 if fy < 400 else 2.5 * eps_y
                 
                 if eps_t <= ep_tccl:
                     phi_factor = phi0
@@ -346,7 +405,7 @@ def check_column(In, R, F):
                     phi_factor = phi0 + (0.85 - phi0) * (eps_t - ep_tccl) / (ep_ttcl - ep_tccl)
                     phi_basis = f"<span class='math-expr'>ε<sub>ty</sub></span>({ep_tccl:.5f}) < <span class='math-expr'>ε<sub>t</sub></span>({eps_t:.5f}) < {ep_ttcl:.5f} 이므로, <b>변화구간</b>에 해당합니다."
 
-            # --- 6. 개선된 안전율 계산 (교점 거리비 방식) ---
+            # --- 6. 안전율 계산 ---
             safety_factor = np.sqrt(phiPn**2 + phiMn**2) / np.sqrt(Pu**2 + Mu**2) if Pu > 0 and Mu > 0 else 0
             sf_status = "안전" if safety_factor >= 1.0 else "위험"
             sf_color = "ok" if safety_factor >= 1.0 else "ng"
@@ -370,26 +429,26 @@ def check_column(In, R, F):
                 <b>1. 기본 정보 및 설계계수</b>
                 <ul>
                     <li>적용 기준: <code>{RC_Code}</code>, 기둥 형식: <code>{Column_Type}</code></li>
-                    <li>콘크리트 계수: <code><span class='math-expr'>β₁</span> = {beta1:.3f}</code>, <code><span class='math-expr'>η</span> = {eta:.3f}</code>, <code><span class='math-expr'>ε<sub>cu</sub></span> = {ep_cu:.5f}</code></li>
+                    <li>콘크리트 계수: <code><span class='math-expr'>β₁</span> = {beta1:.1f}</code>, <code><span class='math-expr'>η</span> = {eta:.1f}</code>, <code><span class='math-expr'>ε<sub>cu</sub></span> = {ep_cu:.4f}</code></li>
                     <li>철근 재료: <code><span class='math-expr'>f<sub>y</sub></span> = {fy:,.0f} MPa</code>, <code><span class='math-expr'>E<sub>s</sub></span> = {Es:,.0f} MPa</code> {'(중공철근)' if 'hollow' in Reinforcement_Type else '(이형철근)'}</li>
-                    <li>작용 하중: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN</code>, <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m</code> (편심 <code>e = {e_actual:,.3f} mm</code>)</li>
-                    <li>가정된 중립축: <code>c = {c_assumed:,.3f} mm</code> (시행착오법으로 결정)</li>
+                    <li>작용 하중: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN</code>, <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m</code> (편심 <code>e = {e_actual:,.1f} mm</code>)</li>
+                    <li>가정된 중립축: <code>c = {c_assumed:,.1f} mm</code> (시행착오법으로 결정)</li>
                 </ul><hr>
                 <b>2. 변형률 호환 및 응력 계산</b>
                 <ul>
                     <li><b>변형률 계산:</b> <code><span class='math-expr'>ε<sub>s</sub> = ε<sub>cu</sub> × (c - d<sub>s</sub>) / c</span></code></li>
-                    <li>압축측 철근 (d<sub>s</sub>={dsi[0,0]:.1f}mm): <code><span class='math-expr'>ε<sub>sc</sub></span> = {ep_si[0,0]:.5f}</code> → <code><span class='math-expr'>f<sub>sc</sub></span> = {fsi[0,0]:,.2f} MPa</code></li>
-                    <li>인장측 철근 (d<sub>t</sub>={dsi[0,1]:.1f}mm): <code><span class='math-expr'>ε<sub>st</sub></span> = {ep_si[0,1]:.5f}</code> → <code><span class='math-expr'>f<sub>st</sub></span> = {fsi[0,1]:,.2f} MPa</code></li>
+                    <li>압축측 철근 (d<sub>s</sub>={dsi[0,0]:.1f}mm): <code><span class='math-expr'>ε<sub>sc</sub></span> = {ep_si[0,0]:.4f}</code> → <code><span class='math-expr'>f<sub>sc</sub></span> = {fsi[0,0]:,.1f} MPa</code></li>
+                    <li>인장측 철근 (d<sub>t</sub>={dsi[0,1]:.1f}mm): <code><span class='math-expr'>ε<sub>st</sub></span> = {ep_si[0,1]:.4f}</code> → <code><span class='math-expr'>f<sub>st</sub></span> = {fsi[0,1]:,.1f} MPa</code></li>
                 </ul><hr>
                 <b>3. 단면력 평형 및 공칭강도 계산</b>
                 <ul>
-                    <li>등가응력블록 깊이: <code>a = <span class='math-expr'>β₁</span> × c = {beta1:.3f} × {c_assumed:.3f} = {a:.3f} mm</code></li>
+                    <li>등가응력블록 깊이: <code>a = <span class='math-expr'>β₁</span> × c = {beta1:.1f} × {c_assumed:.1f} = {a:.1f} mm</code></li>
                     <li>콘크리트 압축면적: <code><span class='math-expr'>A<sub>c</sub></span> = min(a, h) × b = {min(a, h):.1f} × {b:.1f} = {Ac:,.1f} mm²</code></li>
-                    <li>콘크리트 압축력: <code><span class='math-expr'>C<sub>c</sub></span> = η × 0.85 × <span class='math-expr'>f<sub>ck</sub></span> × <span class='math-expr'>A<sub>c</sub></span> = {eta:.3f} × 0.85 × {fck:.1f} × {Ac:,.1f} = {Cc:,.1f} kN</code></li>
+                    <li>콘크리트 압축력: <code><span class='math-expr'>C<sub>c</sub></span> = η × 0.85 × <span class='math-expr'>f<sub>ck</sub></span> × <span class='math-expr'>A<sub>c</sub></span> = {eta:.1f} × 0.85 × {fck:.1f} × {Ac:,.1f} = {Cc:,.1f} kN</code></li>
                     <li>압축측 철근 단면적: <code><span class='math-expr'>A<sub>s1</sub></span> = {As1_calc:,.1f} mm²</code></li>
-                    <li>압축측 철근 합력: <code><span class='math-expr'>C<sub>s</sub></span> = <span class='math-expr'>A<sub>s1</sub></span> × (<span class='math-expr'>f<sub>sc</sub></span> - η × 0.85 × <span class='math-expr'>f<sub>ck</sub></span>) = {As1_calc:,.1f} × ({fsi[0,0]:,.2f} - {eta:.3f} × 0.85 × {fck:.1f}) = {Cs_force:,.1f} kN</code></li>
+                    <li>압축측 철근 합력: <code><span class='math-expr'>C<sub>s</sub></span> = <span class='math-expr'>A<sub>s1</sub></span> × (<span class='math-expr'>f<sub>sc</sub></span> - η × 0.85 × <span class='math-expr'>f<sub>ck</sub></span>) = {As1_calc:,.1f} × ({fsi[0,0]:,.1f} - {eta:.1f} × 0.85 × {fck:.1f}) = {Cs_force:,.1f} kN</code></li>
                     <li>인장측 철근 단면적: <code><span class='math-expr'>A<sub>s</sub></span> = {As_calc:,.1f} mm²</code></li>
-                    <li>인장측 철근 합력: <code><span class='math-expr'>T<sub>s</sub></span> = <span class='math-expr'>A<sub>s</sub></span> × <span class='math-expr'>f<sub>st</sub></span> = {As_calc:,.1f} × {fsi[0,1]:,.2f} = {Ts_force:,.1f} kN</code></li>
+                    <li>인장측 철근 합력: <code><span class='math-expr'>T<sub>s</sub></span> = <span class='math-expr'>A<sub>s</sub></span> × <span class='math-expr'>f<sub>st</sub></span> = {As_calc:,.1f} × {fsi[0,1]:,.1f} = {Ts_force:,.1f} kN</code></li>
                     <li><b>공칭 축강도:</b> <code><span class='math-expr'>P<sub>n</sub></span> = <span class='math-expr'>C<sub>c</sub></span> + <span class='math-expr'>C<sub>s</sub></span> + <span class='math-expr'>T<sub>s</sub></span> = {Cc:,.1f}{Cs_force:+.1f}{Ts_force:+.1f} = {Pn:,.1f} kN</code></li>
                 </ul><hr>
                 <b>4. 공칭 휨강도 계산</b>
@@ -413,16 +472,16 @@ def check_column(In, R, F):
                 <ul>
                     <li><b>평형조건 검토:</b> 
                         <ul>
-                            <li>계산편심: <code>e' = <span class='math-expr'>M<sub>n</sub></span> / <span class='math-expr'>P<sub>n</sub></span> = {Mn:,.1f} / {Pn:,.1f} × 1000 = {e_calc:.3f} mm</code></li>
-                            <li>작용편심: <code>e = <span class='math-expr'>M<sub>u</sub></span> / <span class='math-expr'>P<sub>u</sub></span> × 1000 = {Mu:,.1f} / {Pu:,.1f} × 1000 = {e_actual:.3f} mm</code></li>
-                            <li>상대오차: <code>|e' - e| / e = |{e_calc:.3f} - {e_actual:.3f}| / {e_actual:.3f} = {equilibrium_diff/max(abs(e_actual), 1)*100:.2f}%</code> <span class="{'ok' if equilibrium_check else 'ng'}">{'≤ 1% (O.K.)' if equilibrium_check else '> 1%'}</span></li>
+                            <li>계산편심: <code>e' = <span class='math-expr'>M<sub>n</sub></span> / <span class='math-expr'>P<sub>n</sub></span> = {Mn:,.1f} / {Pn:,.1f} × 1000 = {e_calc:.1f} mm</code></li>
+                            <li>작용편심: <code>e = <span class='math-expr'>M<sub>u</sub></span> / <span class='math-expr'>P<sub>u</sub></span> × 1000 = {Mu:,.1f} / {Pu:,.1f} × 1000 = {e_actual:.1f} mm</code></li>
+                            <li>상대오차: <code>|e' - e| / e = |{e_calc:.1f} - {e_actual:.1f}| / {e_actual:.1f} = {equilibrium_diff/max(abs(e_actual), 1)*100:.1f}%</code> <span class="{'ok' if equilibrium_check else 'ng'}">{'≤ 1% (O.K.)' if equilibrium_check else '> 1%'}</span></li>
                         </ul>
                     </li>
                     <li><b>강도조건 검토:</b>
                         <ul>
                             <li>축력 검토: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN {p_inequality} φ<span class='math-expr'>P<sub>n</sub></span> = {phiPn:,.1f} kN</code> <span class="{p_color}"><b>∴ {p_status}</b></span></li>
                             <li>휨강도 검토: <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m {m_inequality} φ<span class='math-expr'>M<sub>n</sub></span> = {phiMn:,.1f} kN·m</code> <span class="{m_color}"><b>∴ {m_status}</b></span></li>
-                            <li><b>PM 상관도 교점 안전율:</b> <code>S.F. = √[(φ<span class='math-expr'>P<sub>n</sub></span>)² + (φ<span class='math-expr'>M<sub>n</sub></span>)²] / √[<span class='math-expr'>P<sub>u</sub></span>² + <span class='math-expr'>M<sub>u</sub></span>²] = √[{phiPn:,.1f}² + {phiMn:,.1f}²] / √[{Pu:,.1f}² + {Mu:,.1f}²] = {safety_factor:.3f}</code> <span class="{sf_color}"><b>({sf_status})</b></span></li>
+                            <li><b>PM 상관도 교점 안전율:</b> <code>S.F. = √[(φ<span class='math-expr'>P<sub>n</sub></span>)² + (φ<span class='math-expr'>M<sub>n</sub></span>)²] / √[<span class='math-expr'>P<sub>u</sub></span>² + <span class='math-expr'>M<sub>u</sub></span>²] = √[{phiPn:,.1f}² + {phiMn:,.1f}²] / √[{Pu:,.1f}² + {Mu:,.1f}²] = {safety_factor:.1f}</code> <span class="{sf_color}"><b>({sf_status})</b></span></li>
                         </ul>
                     </li>
                 </ul>
@@ -469,7 +528,7 @@ def check_column(In, R, F):
                 }
             else:  # 중공철근
                 material_props = {
-                    'fy': float(getattr(In, 'fy_hollow', 800.0)),  # 중공철근 항복강도 800 MPa
+                    'fy': float(getattr(In, 'fy_hollow', 800.0)),
                     'Es': float(getattr(In, 'Es_hollow', 200000.0)) / 1000
                 }
             
@@ -479,20 +538,24 @@ def check_column(In, R, F):
             st.error(f"데이터 추출 중 오류 발생: {e}")
             return {}, {'Pb_kN': 0.0, 'Mb_kNm': 0.0, 'eb_mm': 0.0, 'cb_mm': 0.0}, {'fy': 0.0, 'Es': 0.0}
 
-    def calculate_strength_check(In, material_type):
+
+    def calculate_strength_check(In, PM_obj, material_type):
+        """
+        수정된 함수: PM_obj를 인자로 받아 순수 휨/압축 케이스를 특별 처리하고,
+        사이드바 placeholder를 정확하게 업데이트합니다.
+        """
         try:
             Pu_values, Mu_values = getattr(In, 'Pu', []), getattr(In, 'Mu', [])
             if hasattr(Pu_values, 'tolist'): Pu_values = Pu_values.tolist()
             if hasattr(Mu_values, 'tolist'): Mu_values = Mu_values.tolist()
             
             if material_type == '이형철근':
-                safety_factors, Pd_values, Md_values = getattr(In, 'safe_RC', []), getattr(In, 'Pd_RC', []), getattr(In, 'Md_RC', [])
+                Pd_iter_values, Md_iter_values = getattr(In, 'Pd_RC', []), getattr(In, 'Md_RC', [])
             else:
-                safety_factors, Pd_values, Md_values = getattr(In, 'safe_FRP', []), getattr(In, 'Pd_FRP', []), getattr(In, 'Md_FRP', [])
-            
-            if hasattr(safety_factors, 'tolist'): safety_factors = safety_factors.tolist()
-            if hasattr(Pd_values, 'tolist'): Pd_values = Pd_values.tolist()
-            if hasattr(Md_values, 'tolist'): Md_values = Md_values.tolist()
+                Pd_iter_values, Md_iter_values = getattr(In, 'Pd_FRP', []), getattr(In, 'Md_FRP', [])
+
+            if hasattr(Pd_iter_values, 'tolist'): Pd_iter_values = Pd_iter_values.tolist()
+            if hasattr(Md_iter_values, 'tolist'): Md_iter_values = Md_iter_values.tolist()
             
             if not Pu_values or not Mu_values: return []
             
@@ -500,12 +563,44 @@ def check_column(In, R, F):
             for i in range(min(len(Pu_values), len(Mu_values))):
                 try:
                     Pu, Mu = float(Pu_values[i]), float(Mu_values[i])
-                    Pd, Md = float(Pd_values[i]), float(Md_values[i])
                     
-                    # PM 상관도 교점 거리비 안전율 계산
-                    safety_factor = np.sqrt(Pd**2 + Md**2) / np.sqrt(Pu**2 + Mu**2) if Pu > 0 and Mu > 0 else 0
+                    is_pure_bending = np.isclose(Pu, 0)
+                    is_pure_compression = np.isclose(Mu, 0)
+
+                    if is_pure_bending: # 순수 휨 (Pu = 0)
+                        Pd = getattr(PM_obj, 'Pd', [0]*6)[5]
+                        Md = getattr(PM_obj, 'Md', [0]*6)[5]
+                    elif is_pure_compression: # 순수 압축 (Mu = 0)
+                        Pd = getattr(PM_obj, 'Pd', [0]*6)[0]
+                        Md = getattr(PM_obj, 'Md', [0]*6)[0]
+                    else: # 그 외 일반적인 경우
+                        Pd = float(Pd_iter_values[i])
+                        Md = float(Md_iter_values[i])
+
+                    safety_factor = np.sqrt(Pd**2 + Md**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 0 else np.inf
                     
-                    e = (Mu / Pu) * 1000 if Pu != 0 else 0
+                    # --- 🎯 여기가 최종 수정된 사이드바 업데이트 로직입니다 ---
+                    if material_type == '이형철근':
+                        # 첫 번째 실행(이형철근)일 때는 값만 저장합니다.
+                        In.safe_RC[i] = safety_factor
+                    elif material_type == '중공철근':
+                        # 두 번째 실행(중공철근)일 때, 저장된 이형철근 값과
+                        # 현재 계산된 중공철근 값을 함께 사용해 placeholder를 업데이트합니다.
+                        In.safe_FRP[i] = safety_factor
+                        if In.placeholder_strength and i < len(In.placeholder_strength) and In.placeholder_strength[i] is not None:
+                            # 안전율 값에 따라 색상 동적 변경
+                            color_rc = 'green' if In.safe_RC[i] >= 1.0 else 'red'
+                            color_frp = 'green' if In.safe_FRP[i] >= 1.0 else 'red'
+                            
+                            In.placeholder_strength[i].markdown(
+                                f"""<div style='text-align:center; font-weight:bold;'>
+                                    <span style='color:{color_rc};'>{In.safe_RC[i]:.1f}</span> / <span style='color:{color_frp};'>{In.safe_FRP[i]:.1f}</span>
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
+                    # --- 수정 끝 ---
+                    
+                    e = (Mu / Pu) * 1000 if Pu != 0 else np.inf
                     verdict = 'PASS' if safety_factor >= 1.0 else 'FAIL'
                     
                     checks.append({
@@ -516,19 +611,18 @@ def check_column(In, R, F):
                         'SF': safety_factor, 
                         'Verdict': verdict
                     })
-                except (ValueError, TypeError, ZeroDivisionError, IndexError):
+                except (ValueError, TypeError, ZeroDivisionError, IndexError) as e:
+                    st.error(f"Error in check loop for LC-{i+1}: {e}") # 디버깅용 에러 메시지
                     checks.append({
-                        'LC': f'LC-{i+1}', 
-                        'Pu/phiPn': 'ERROR', 
-                        'Mu/phiMn': 'ERROR', 
-                        'e_mm': 0.0, 
-                        'SF': 0.0, 
-                        'Verdict': 'FAIL'
+                        'LC': f'LC-{i+1}', 'Pu/phiPn': 'ERROR', 'Mu/phiMn': 'ERROR', 
+                        'e_mm': 0.0, 'SF': 0.0, 'Verdict': 'FAIL'
                     })
             return checks
         except Exception as e:
             st.error(f"강도 검토 계산 중 오류 발생: {e}")
             return []
+
+    # (이하 다른 헬퍼 함수들...)
             
     def render_common_conditions(In):
         st.markdown('<div class="common-conditions"><div class="common-header">🏗️ 공통 설계 조건</div>', unsafe_allow_html=True)
@@ -548,7 +642,7 @@ def check_column(In, R, F):
         
         with col4:
             dia, dc = getattr(In, 'dia', [22.0])[0], getattr(In, 'dc', [60.0])[0]
-            rebar_count = f"{In.be / In.sb[0]:,.2f}"  # 1000/150 = 6.67 → 각 7개
+            rebar_count = f"{In.be / In.sb[0]:,.2f}"
             st.markdown(f'''<table class="common-table"><tr><td colspan="2" style="text-align:center;font-weight:bold;">🔩 철근 배치</td></tr><tr><td><span class="icon">⭕</span>철근 직경 D</td><td>{dia:,.1f} mm</td></tr><tr><td><span class="icon">🛡️</span>피복두께 d<sub>c</sub></td><td>{dc:,.1f} mm</td></tr><tr><td><span class="icon">📊</span>압축/인장측</td><td>각 {rebar_count}개</td></tr></table>''', unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -568,17 +662,31 @@ def check_column(In, R, F):
             st.markdown(f'''<table class="param-table"><tr><td><span class="icon">⚖️</span>축력 P<sub>b</sub></td><td>{balanced_data.get('Pb_kN', 0):,.1f} kN</td></tr><tr><td><span class="icon">📏</span>모멘트 M<sub>b</sub></td><td>{balanced_data.get('Mb_kNm', 0):,.1f} kN·m</td></tr><tr><td><span class="icon">📐</span>편심 e<sub>b</sub></td><td>{balanced_data.get('eb_mm', 0):,.1f} mm</td></tr><tr><td><span class="icon">🎯</span>중립축 깊이 c<sub>b</sub></td><td>{balanced_data.get('cb_mm', 0):,.1f} mm</td></tr></table>''', unsafe_allow_html=True)
             
             st.markdown('<div class="sub-section-header">📊 기둥강도 검토 결과 (요약)</div>', unsafe_allow_html=True)
-            check_results = calculate_strength_check(In, material_type)
+            check_results = calculate_strength_check(In, PM_obj, material_type)
             
             if check_results:
                 def render_html_table(results):
-                    html = '''<table class="results-table"><tr><th>하중조합</th><th>P<sub>u</sub> / φP<sub>n</sub> [kN]</th><th>M<sub>u</sub> / φM<sub>n</sub> [kN·m]</th><th>편심 e [mm]</th><th>PM 교점 안전율</th><th>판정</th></tr>'''
+                    html = '''<table class="results-table" style="margin:0 auto; text-align:center;">
+                    <tr>
+                    <th>하중조합</th><th>P<sub>u</sub> / φP<sub>n</sub> [kN]</th>
+                    <th>M<sub>u</sub> / φM<sub>n</sub> [kN·m]</th><th>편심 e [mm]</th>
+                    <th>PM 교점 안전율</th><th>판정</th>
+                    </tr>'''
                     all_passed = True
                     for r in results:
                         vc = "pass" if r['Verdict'] == 'PASS' else "fail"
                         if vc == "fail": all_passed = False
-                        html += f'''<tr><td><b>{r['LC']}</b></td><td>{r['Pu/phiPn']}</td><td>{r['Mu/phiMn']}</td><td>{r['e_mm']:.1f}</td><td>{r['SF']:.3f}</td><td class="{vc}">{r['Verdict']} {'✅' if vc == 'pass' else '❌'}</td></tr>'''
+                        e_val = '∞' if np.isinf(r['e_mm']) else f"{r['e_mm']:.1f}"
+                        html += f'''<tr>
+                            <td><b>{r['LC']}</b></td>
+                            <td>{r['Pu/phiPn']}</td>
+                            <td>{r['Mu/phiMn']}</td>
+                            <td>{e_val}</td>
+                            <td>{r['SF']:.1f}</td>
+                            <td class="{vc}">{r['Verdict']} {'✅' if vc == 'pass' else '❌'}</td>
+                        </tr>'''
                     return html + '</table>', all_passed
+
 
                 html_table, all_passed = render_html_table(check_results)
                 st.markdown(html_table, unsafe_allow_html=True)
@@ -610,7 +718,9 @@ def check_column(In, R, F):
         st.markdown('<div class="main-header">🏗️ 기둥 강도 검토 보고서</div>', unsafe_allow_html=True)
         render_common_conditions(In)
         col1, col2 = st.columns(2, gap="large")
+        # For "이형철근", pass the 'R' object as PM_obj
         create_report_column(col1, "📊 이형철근 검토", In, R, "이형철근")
+        # For "중공철근", pass the 'F' object as PM_obj
         create_report_column(col2, "📊 중공철근 검토", In, F, "중공철근")
         st.markdown('</div>', unsafe_allow_html=True)
         

@@ -116,6 +116,7 @@ def Cal(In, Reinforcement_Type):
     [cc, Pn, Mn, ee] = [np.zeros(n), np.zeros(n), np.zeros(n), np.zeros(n)]
     [ep_s, fs] = [np.zeros((n, 2)), np.zeros((n, 2))]
 
+
     ###* Calculation Point A(1-1) : Pure Comppression (e = 0, c = inf, Mn = 0) ###
     z1 = 1 - 1
     cc[z1] = np.inf
@@ -503,6 +504,7 @@ def Cal(In, Reinforcement_Type):
     PM.Zphi = Zphi
     PM.ZPd = ZPd
     PM.ZMd = ZMd
+
     if 'FRP' in Reinforcement_Type and 'ACI 440.1' in FRP_Code:  #! for ACI 440.1R**  Only Only
         PM.Pn8 = Pn8
         PM.Mn8 = Mn8

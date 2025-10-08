@@ -327,7 +327,7 @@ def display_basic_theory():
 def render_case_analysis(data, In, i, num_symbols):
     """단일 케이스 해석을 수행하고 결과를 현재 컬럼에 표시"""
     
-    fs_case, x_case = data.fs[i], data.x[i]
+    fs_case, x_case = data.fss[i], data.x[i]
     P0_case, M0_case = In.P0[i], In.M0[i]
 
     st.markdown(f"# **{num_symbols[i]}번 검토**")

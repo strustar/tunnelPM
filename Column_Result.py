@@ -10,6 +10,10 @@ size15 = 15
 size17 = 17
 size20 = 20
 
+# Column.py 파일 상단에 추가
+def set_run_flag():
+    """라디오 버튼 값이 바뀔 때 '계산 스위치'를 켜는 함수"""
+    st.session_state['run_calculation'] = True
 
 def Fig(In, R, F):
     if 'ACI 440.1' in In.FRP_Code:  #! for ACI 440.1R**  Only Only, 추가점 c=0(x=0 일때)
@@ -21,6 +25,8 @@ def Fig(In, R, F):
         F.Mn = np.append(F.Mn, F.Mn8)
         F.Pd = np.append(F.Pd, F.Pd8)
         F.Md = np.append(F.Md, F.Md8)
+
+   
 
     PM_RC, PM_FRP = st.columns(2, gap="small")
     with PM_RC:
@@ -47,6 +53,7 @@ def Fig(In, R, F):
         else:
             st.warning(':green[좌측 사이드바에서 PM Diagram Option을 "이형철근 vs. 중공철근"으로 설정하세요]', icon="⚠️")
 
+
         txt = 'D - ' if 'Circle' in In.Section_Type else 'h - '
         selected_row = st.radio(
             '#### ￭ Select one below',
@@ -62,7 +69,9 @@ def Fig(In, R, F):
             key='selected_row',
             index=None,
             label_visibility='collapsed',
+             on_change=set_run_flag  # <-- 이 줄을 추가!
         )
+
     with table_RC:
         Table(In, R, F, 'RC', selected_row)
     with table_FRP:
@@ -557,95 +566,230 @@ def PM_plot(In, R, F, loc, selected_row):
             annotation(fig, f * x, f * y, color, txt, 'center', 'middle', bgcolor='yellow', size=size17)
 
         ### 기둥 강도 검토 ====================================================== 
-        def find_intersection(curve_x, curve_y, curve_c, M1, P1):
+        def find_neutral_axis_by_trial_error(Pu, Mu, In, material_type):
             """
-            PM상관도에서 교점을 찾고 해당 지점의 중립축도 보간으로 구하기
-            
-            Parameters:
-            - curve_x: 모멘트 배열 (ZMd)
-            - curve_y: 축력 배열 (ZPd)  
-            - curve_c: 중립축 배열 (Zc)
-            - M1, P1: 요구 모멘트, 축력
+            시행착오법으로 평형조건을 만족하는 정확한 중립축 찾기
             
             Returns:
-            - x_int, y_int, c_int: 교점의 모멘트, 축력, 중립축
+            - c: 수렴된 중립축 깊이
+            - phiPn: 설계 축강도
+            - phiMn: 설계 휨강도
             """
+            import math
             
-            # 1) 기본 검증
-            if M1 == 0:
-                return None, None, None
-            k = P1 / M1  # 직선 기울기
-
-            # 2) 선분별 교차 검사
-            for j in range(len(curve_x) - 1):
-                x0, y0, c0 = curve_x[j],   curve_y[j],   curve_c[j]
-                x1, y1, c1 = curve_x[j+1], curve_y[j+1], curve_c[j+1]
-                f0, f1 = y0 - k * x0,   y1 - k * x1
-
-                # 2-1) 선분 시작점이 교점일 때
-                if f0 == 0:
-                    return x0, y0, c0
-
-                # 2-2) 구간 내부에 교차점이 있을 때
-                if f0 * f1 < 0:
-                    t = f0 / (f0 - f1)  # 보간 계수
-                    xi = x0 + t * (x1 - x0)    # 모멘트 보간
-                    yi = y0 + t * (y1 - y0)    # 축력 보간
-                    ci = c0 + t * (c1 - c0)    # 중립축 보간 ✅
-                    return xi, yi, ci
-                    
-            # 3) 교점 미발견
-            return None, None, None
-
-        # 1) 곡선 배열 초기화    
-        curve_x = np.array(F.ZMd) if 'hollow' in loc else np.array(R.ZMd)   # 반드시 길이 97 배열
-        curve_y = np.array(F.ZPd) if 'hollow' in loc else np.array(R.ZPd)
-        curve_c = np.array(F.Zc) if 'hollow' in loc else np.array(R.Zc)
+            # 순수 축력 케이스 처리
+            if abs(Mu) < 0.1:  # 모멘트가 거의 0
+                c = np.inf  # 전체 단면 압축
+                # 단순화된 계산
+                if material_type == '이형철근':
+                    phiPn = R.Pd[0]  # Pure compression 값 사용
+                    phiMn = 0
+                else:
+                    phiPn = F.Pd[0]
+                    phiMn = 0
+                return c, phiPn, phiMn
+            
+            # 목표 편심
+            target_e = abs(Mu / Pu) * 1000
+            
+            # 재료 특성
+            if material_type == '이형철근':
+                fy = In.fy
+                Es = In.Es
+                Reinforcement_Type = 'RC'
+            else:
+                fy = In.fy_hollow
+                Es = In.Es_hollow
+                Reinforcement_Type = 'hollow'
+            
+            # KDS-2021 계수 계산
+            fck = In.fck
+            [n, ep_co, ep_cu] = [2, 0.002, 0.0033]
+            if fck > 40:
+                n = 1.2 + 1.5 * ((100 - fck) / 60) ** 4
+                ep_co = 0.002 + (fck - 40) / 1e5
+                ep_cu = 0.0033 - (fck - 40) / 1e5
+            if n >= 2:
+                n = 2
+            n = round(n * 100) / 100
+            
+            alpha = 1 - 1 / (1 + n) * (ep_co / ep_cu)
+            temp = 1 / (1 + n) / (2 + n) * (ep_co / ep_cu) ** 2
+            if fck <= 40:
+                alpha = 0.8
+            beta = 1 - (0.5 - temp) / alpha
+            if fck <= 50:
+                beta = 0.4
+            
+            beta1 = 2 * beta
+            eta = alpha / beta1
+            eta = round(eta * 100) / 100
+            if fck == 50:
+                eta = 0.97
+            if fck == 80:
+                eta = 0.87
+            
+            # 단면 정보
+            h = In.height
+            b = In.be
+            Layer = 1
+            ni = [2]
+            
+            # 철근 위치와 면적
+            dsi = np.zeros((Layer, ni[0]))
+            Asi = np.zeros((Layer, ni[0]))
+            dsi[0, :] = [In.dc1[0], h - In.dc[0]]
+            
+            # 철근 단면적 (중공철근은 50%)
+            area_factor = 0.5 if 'hollow' in Reinforcement_Type else 1.0
+            Ast = np.pi * In.dia[0]**2 / 4 * area_factor
+            Ast1 = np.pi * In.dia1[0]**2 / 4 * area_factor
+            nst = b / In.sb[0]
+            Asi[0, :] = [Ast1 * nst, Ast * nst]
+            
+            # 초기 c값 추정
+            if target_e < 50:
+                c_initial = h * 0.8
+            elif target_e < 200:
+                c_initial = h * 0.5
+            else:
+                c_initial = h * 0.3
+            
+            c = c_initial
+            
+            # 시행착오법 반복
+            for iteration in range(10000):
+                # 배열 초기화
+                ep_si = np.zeros_like(dsi)
+                fsi = np.zeros_like(dsi)
+                Fsi = np.zeros_like(dsi)
                 
+                # RC_and_AASHTO 함수 호출 (첫 번째 파일의 함수 사용)
+                from Check_Column import RC_and_AASHTO
+                Pn, Mn = RC_and_AASHTO(
+                    'Rectangle', Reinforcement_Type, beta1, c, eta, fck,
+                    Layer, ni, ep_si, ep_cu, dsi, fsi, Es, fy, Fsi, Asi,
+                    h, b, h
+                )
+                
+                # 계산된 편심
+                if abs(Pn) < 0.001:
+                    e_calc = 1e6
+                else:
+                    e_calc = abs(Mn / Pn) * 1000
+                
+                # 수렴 확인
+                error = e_calc - target_e
+                if abs(error) < 0.001:  # 0.5mm 허용오차
+                    # 강도감소계수 계산
+                    dt = dsi[0, 1]  # 인장철근 위치
+                    
+                    if c > 0 and not math.isnan(c):
+                        eps_t = ep_cu * (dt - c) / c
+                    else:
+                        eps_t = 0
+                    
+                    eps_y = fy / Es
+                    
+                    # 기둥 타입에 따른 phi0
+                    if 'Spiral' in In.Column_Type:
+                        phi0 = 0.70
+                    else:
+                        phi0 = 0.65
+                    
+                    # 강도감소계수 결정
+                    if eps_t <= eps_y:
+                        phi = phi0
+                    elif eps_t >= (2.5 * eps_y if fy < 400 else 0.005):
+                        phi = 0.85
+                    else:
+                        ep_ttcl = 2.5 * eps_y if fy < 400 else 0.005
+                        phi = phi0 + (0.85 - phi0) * (eps_t - eps_y) / (ep_ttcl - eps_y)
+                    
+                    return c, Pn * phi, Mn * phi
+                
+                # c값 조정 (적응형 스텝)
+                if iteration < 1000:
+                    step = 0.001  # 초기: 큰 스텝
+                else:
+                    step = 0.0002  # 후기: 작은 스텝
+                
+                if error > 1:  # 큰 오차
+                    step *= min(abs(error) / target_e, 2.0)
+                
+                if error > 0:  # e_calc > target_e
+                    c = c * (1 + step)
+                else:
+                    c = c * (1 - step)
+                
+                # c값 범위 제한
+                c = max(1.0, min(c, h * 5.0))
+            
+            # 수렴 실패 시 근사값 반환
+            print(f"Warning: 수렴 실패, 최종 오차: {error:.2f}mm")
+            return c, Pn, Mn
+
+        # 기존 find_intersection 호출 부분을 아래와 같이 교체
+        # 1) 곡선 배열은 PM 상관도 표시용으로만 사용
+        curve_x = np.array(F.ZMd) if 'hollow' in loc else np.array(R.ZMd)
+        curve_y = np.array(F.ZPd) if 'hollow' in loc else np.array(R.ZPd)
+
         for i in range(len(In.Mu)):
-            # 2) 각 점에 대해 교점 계산
+            # 2) 시행착오법으로 정확한 값 계산
             M1, P1 = In.Mu[i], In.Pu[i]
-            x_int, y_int, c_int = find_intersection(curve_x, curve_y, curve_c, M1, P1)
+            
+            # 시행착오법 호출
+            if P1 == 0:
+                c_exact, phiPn_exact, phiMn_exact =58.5, 0, 0
+            else:
+                c_exact, phiPn_exact, phiMn_exact = find_neutral_axis_by_trial_error(
+                    P1, M1, In, 'hollow' if 'hollow' in loc else '이형철근'
+                )
+            
+            # 안전율 계산
+            if P1 != 0 or M1 != 0:
+                safety = np.sqrt(phiPn_exact**2 + phiMn_exact**2) / np.sqrt(P1**2 + M1**2)
+            else:
+                safety = 1.0
+            
             color = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'darkred', 'lightgreen', 'lightblue', 'black']
             
             if 'hollow' not in loc:
-                In.safe_RC[i] = np.sqrt(x_int**2 + y_int**2) / np.sqrt(M1**2 + P1**2)
-                In.Pd_RC[i] = y_int
-                In.Md_RC[i] = x_int
-                In.c_RC[i] = c_int
+                In.safe_RC[i] = safety
+                In.Pd_RC[i] = phiPn_exact
+                In.Md_RC[i] = phiMn_exact
+                In.c_RC[i] = c_exact
             else:
-                safety = np.sqrt(x_int**2 + y_int**2) / np.sqrt(M1**2 + P1**2)
                 In.safe_FRP[i] = safety
-                In.Pd_FRP[i] = y_int
-                In.Md_FRP[i] = x_int
-                In.c_FRP[i] = c_int
+                In.Pd_FRP[i] = phiPn_exact
+                In.Md_FRP[i] = phiMn_exact
+                In.c_FRP[i] = c_exact
                 colors = ['red', 'green', 'blue', 'red', 'green', 'blue', 'red', 'green', 'blue', 'black']
                 In.placeholder_strength[i].write(f":{colors[i]}[{In.safe_RC[i]:.2f} / {safety:.2f}]")
-                
-        
-            # if x_int is None:
-            #     st.info(f"{i}번째 점 교점 미발견: 데이터·기울기 확인 필요")
-            # else:
-            #     st.info(f"{i}번째 점 교점: x={x_int:.2f}, y={y_int:.2f}")
+            
+            # 시각화용 선 그리기 (원점에서 계산된 점까지)
             if In.check:
                 fig.add_trace(
-                    go.Scatter(x=[0, x_int], y=[0, y_int], line=dict(width=3, color=color[i]), showlegend=False, name='delete_hover')
+                    go.Scatter(
+                        x=[0, phiMn_exact], 
+                        y=[0, phiPn_exact], 
+                        line=dict(width=3, color=color[i]), 
+                        showlegend=False, 
+                        name='delete_hover'
+                    )
                 )
 
             num_symbols = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]
-            bgcolor = ['rgba(255,0,0,0.5)', 'rgba(0,255,0,0.8)', 'rgba(0,0,255,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)', 'rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,255,0,0.5)']
+            bgcolor = ['rgba(255,0,0,0.5)', 'rgba(0,255,0,0.8)', 'rgba(0,0,255,0.5)', 
+                    'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)', 'rgba(255,255,0,0.5)', 
+                    'rgba(0,255,255,0.5)', 'rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 
+                    'rgba(255,255,0,0.5)']
             
             [x, y] = [In.Mu[i], In.Pu[i]]
-            # fig.add_trace(
-            #     go.Scatter(x=[x], y=[y], mode='markers',
-            #         marker=dict(symbol='diamond', size=size8, color=color[i], line=dict(width=2, color='black')),
-            #         showlegend=False,
-            #         name='delete_hover',
-            #         )
-            #     )
-            annotation(fig, x, y, 'black', num_symbols[i], 'center', 'middle', bgcolor=bgcolor[i], size=size17)
-    
-        ### 기둥 강도 검토 ======================================================
+            annotation(fig, x, y, 'black', num_symbols[i], 'center', 'middle', 
+                    bgcolor=bgcolor[i], size=size17)
+
+        ### 기둥 강도 검토 ========================================================
 
     # A(0), B(1), C(2), D(3), E(4), F(5), G(6) 점 찍기
     for i in [1, 2]:  # 1 : Pn-Mn,  2 : Pd-Md
