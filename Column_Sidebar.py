@@ -252,28 +252,34 @@ def Sidebar():
                         st.rerun()
             else:
                 st.info("저장된 프리셋 파일이 없습니다. 먼저 저장해 주세요.")
+                
+            # --- 저장 ---
+            with tabs[1]:
+                preset_name = st.text_input(
+                    '프리셋 이름 (기본값 권장: 프리셋_N)',
+                    value=st.session_state['new_preset_name'],
+                    key='new_preset_name'
+                )
 
-        # --- 저장 ---
-        with tabs[1]:
-            preset_name = st.text_input(
-                '프리셋 이름 (기본값 권장: 프리셋_N)',
-                value=st.session_state['new_preset_name'],
-                key='new_preset_name',
-                placeholder='예: 프리셋_1, 프리셋_2 …'
-            )
-            st.caption("📝 UI에서는 확장자를 숨기지만, 실제 파일은 `.json`으로 저장됩니다.")
-
-            if st.button('💾 저장', use_container_width=True, type='primary', key='save_btn_simple'):
-                name = (preset_name or "").strip()
-                if not name:
-                    st.error('❌ 프리셋 이름을 입력해 주세요.')
-                else:
-                    if save_preset_to_file(name):
-                        st.success(f"💾 '{name}' 저장을 완료했습니다.")
-                        # 바로 키를 바꾸지 말고, 플래그만 세우고 재실행 → 다음 사이클 초기에 안전 갱신
-                        st.session_state['_bump_preset_name'] = True
-                        st.rerun()
-
+                if st.button('💾 저장', use_container_width=True, type='primary', key='save_btn_simple'):
+                    name = (preset_name or "").strip()
+                    if not name:
+                        st.error('❌ 프리셋 이름을 입력해 주세요.')
+                    else:
+                        if save_preset_to_file(name):
+                            st.success(f"💾 '{name}' 프리셋을 생성했습니다.")
+                            st.session_state['_bump_preset_name'] = True
+                            
+                            # --- ✨ 다운로드 버튼 추가 ✨ ---
+                            file_path = make_preset_filepath(name)
+                            with open(file_path, "rb") as fp:
+                                st.download_button(
+                                    label="📥 생성된 프리셋 파일 다운로드",
+                                    data=fp,
+                                    file_name=f"{name}.json",
+                                    mime="application/json"
+                                )
+                            st.rerun()
         # --- 프리셋 사용법 (넘침 방지 래퍼 포함) ---
         st.markdown("---")
         with sb.expander("ℹ️ 프리셋 사용법", expanded=False):
