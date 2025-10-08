@@ -247,34 +247,29 @@ def Sidebar():
 
         # --- 불러오기 ---
         with tabs[0]:
-            st.info("① PC에서 .json 업로드 하거나, ② (선택) 서버에 남아있는 목록에서 불러오세요.")
+            st.info("① PC에서 .json 업로드 하거나, ② (선택) 서버 목록에서 불러오세요.")
             st.markdown("---")
 
-            # ① 업로드로 불러오기 (로컬 파일)
-            up = st.file_uploader("프리셋 파일 업로드 (.json)", type=["json"], key="preset_uploader")
-            if up is not None:
-                try:
-                    pdata = json.load(up)
-                    if load_preset_from_dict(pdata):
-                        st.success(f"✅ 업로드한 '{pdata.get('preset_name','(이름없음)')}' 프리셋을 불러왔습니다.")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"프리셋 업로드/로드 실패: {e}")
+            # ⬇️ 폼으로 감싸서 '버튼 눌렀을 때만' 처리되도록
+            with st.form("preset_upload_form"):
+                up = st.file_uploader("프리셋 파일 업로드 (.json)", type=["json"], key="preset_uploader")
+                submitted = st.form_submit_button("✅ 업로드 불러오기")
 
-            st.markdown("---")
+            if submitted:
+                if up is None:
+                    st.error("업로드된 파일이 없습니다.")
+                else:
+                    try:
+                        import json
+                        pdata = json.load(up)
+                        if load_preset_from_dict(pdata):
+                            st.success(f"✅ 업로드한 '{pdata.get('preset_name','(이름없음)')}' 프리셋을 불러왔습니다.")
+                            # 필요하면 다음 이름 증가 등 상태값 세팅
+                            st.session_state['_bump_preset_name'] = True
+                            st.rerun()  # 이 rerun 후에는 submitted=False라 재처리 안 됨
+                    except Exception as e:
+                        st.error(f"프리셋 업로드/로드 실패: {e}")
 
-            # ② (선택) 서버 폴더에서 불러오기
-            files = list_preset_files()
-            if files:
-                display_names = [p.stem for p in files]  # .json 숨김
-                sel = st.selectbox("서버에 남아있는 프리셋 선택", display_names, key='preset_select_from_folder')
-                if st.button("✅ 서버에서 불러오기", use_container_width=True, key='btn_load_from_folder'):
-                    fp = str(files[display_names.index(sel)])
-                    if load_preset_from_file(fp):
-                        st.success(f"✅ '{sel}' 프리셋을 불러왔습니다.")
-                        st.rerun()
-            else:
-                st.caption("서버에 저장된 프리셋 파일이 없습니다. (업로드 기능을 사용해 주세요)")
 
         # --- 저장 ---
         with tabs[1]:
