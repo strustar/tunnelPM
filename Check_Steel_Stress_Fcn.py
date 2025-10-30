@@ -70,7 +70,7 @@ def calculate_steel_stress(In, R):
         # 여러 초기 추정값으로 해찾기 시도
         initial_guesses = [[h/2, 0.001], [h/3, 0.0015], [h/4, 0.0008], [2*h/3, 0.002]]
         for guess in initial_guesses:
-            solution, info, ier, msg = fsolve(equilibrium_equations, guess, full_output=True, xtol=1e-8)
+            solution, info, ier, msg = fsolve(equilibrium_equations, guess, full_output=True, xtol=1e-3)
             if ier == 1: # 성공적으로 해를 찾은 경우
                 x_sol, ec_sol = solution
                 if 0 < x_sol < h: # 물리적으로 타당한 해인지 검증

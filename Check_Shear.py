@@ -2,18 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+
 def check_shear(In, R):
     """
-    🛡️ 전단설계 최적화 보고서 - KDS 14 20 기준 (v3.2 - 가독성 및 근거 강화)
-    - 요청사항 반영: 요약표 가독성, 단계별 구분, 판정/계산 근거 명시
-    - Av, Vs, Av/s 산정 근거 추가
-    - 최종 판정 로직 강화 (OK/NG 및 사유 명시)
-    - 최대 전단강도(단면) 검토 과정 분리 및 계산 근거 제시
-    - 수식 스타일 통일 (LaTeX) 및 UI/UX 개선
+    🛡️ 전단설계 최적화 보고서 - KDS 14 20 기준 (v4.0 - Mm 개념 및 축력 고려 반영)
+    - Mm (수정 모멘트) 개념 추가
+    - Mm < 0: 축력 고려식 적용
+    - Mm > 0: 정밀식 적용
+    - 계산 근거 및 수식 명시 강화
     """
 
     # =================================================================
-    # 0. 페이지 헤더 및 기본 UI 설정 (기존과 동일)
+    # 0. 페이지 헤더 및 기본 UI 설정
     # =================================================================
     st.markdown("""
     <style>
@@ -35,19 +35,19 @@ def check_shear(In, R):
             margin-bottom: 30px;
         }
         .calc-block p {
-            font-size: 1.2em; /* 글자 크기 상향 */
+            font-size: 1.2em;
             margin: 0;
             color: #333;
             font-weight: 500;
         }
         .calc-block strong {
             color: #0056b3;
-            font-size: 1.3em; /* 결과값 강조 */
+            font-size: 1.3em;
             font-weight: 700;
         }
         /* LaTeX 수식 스타일 */
         .stLatex {
-            font-size: 1.15em; /* 수식 크기 상향 */
+            font-size: 1.15em;
             padding: 15px;
             background-color: #e9ecef;
             border-radius: 5px;
@@ -64,13 +64,13 @@ def check_shear(In, R):
         </h1>
         <p style="color: #e0e0e0; text-align: center; margin: 15px 0 0 0;
                   font-size: 1.4em; opacity: 0.95;">
-            KDS 14 20 콘크리트구조설계기준 적용
+            KDS 14 20 콘크리트구조설계기준 적용 (축력 고려)
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     # =================================================================
-    # 1. 설계 기준 및 이론 (기존과 동일)
+    # 1. 설계 기준 및 이론
     # =================================================================
     st.markdown("## 📋 **전단철근 판정 기준 선택**")
     check_type = st.radio(
@@ -125,35 +125,74 @@ def check_shear(In, R):
     st.markdown("<br>", unsafe_allow_html=True)
 
     # =================================================================
-    # 2. 공통 설계 조건 및 계산 로직 (기존과 동일)
+    # 2. 공통 설계 조건 및 계산 로직
     # =================================================================
     def format_number(num, decimal_places=1):
         return f"{num:,.{decimal_places}f}"
 
     phi_v = 0.75
     lamda = 1.0
-    fy_shear = 400
     bar_dia = 13
     legs = 2
     bar_area = np.pi * (bar_dia / 2)**2
     Av_stirrup = bar_area * legs
 
-    bw, d, fck, Ag = In.be, In.depth, In.fck, R.Ag
+    bw, d, h, fck, Ag, fy_shear = In.be, In.depth, In.height, In.fck, R.Ag, In.fy_hollow
+    Ast_tension = R.Ast_tension[0]/2
+    Ast_compression = R.Ast_compression[0]/2
+    As = Ast_tension + Ast_compression
+    rho_w = As/(bw*d)
     
     results = [] # 결과를 저장할 리스트
 
     # =================================================================
-    # 3. 각 하중 케이스별 계산 (기존과 동일)
+    # 3. 각 하중 케이스별 계산 (Mm 개념 추가)
     # =================================================================
     for i in range(len(In.Vu)):
         Vu = In.Vu[i]
-        Pu = In.Pu_shear[i]
+        Pu = In.Pu[i]  # kN (압축 +, 인장 -)
+        Mu = In.Mu[i]  # kN·m
+        
+        Nu = Pu * 1000  # N 단위로 변환
+        Mu_Nmm = Mu * 1e6  # N·mm 단위로 변환
 
-        p_factor = 1 + (Pu * 1000) / (14 * Ag) if Pu != 0 else 1.0
-        Vc = (1/6) * p_factor * lamda * np.sqrt(fck) * bw * d
+        # ============================================================
+        # 🔹 Mm (수정 모멘트) 계산
+        # ============================================================
+        Mm = Mu_Nmm - Nu * (4 * h - d) / 8
+        
+        # ============================================================
+        # 🔹 Vc 계산 (Mm 값에 따라 식 선택)
+        # ============================================================
+        if Mm < 0:
+            # Case 1: 축력이 지배적 (Mm < 0)
+            # Vc = 0.29 λ √fck B d √(1 + Nu/(3.5·Ag))
+            Vc = 0.29 * lamda * np.sqrt(fck) * bw * d * np.sqrt(1 + Nu / (3.5 * Ag))
+            vc_method = "축력 고려식 (Mm < 0)"
+            vc_formula = r"V_c = 0.29 \lambda \sqrt{f_{ck}} b_w d \sqrt{1 + \frac{N_u}{3.5 A_g}}"
+        else:
+            # Case 2: 휨모멘트가 지배적 (Mm ≥ 0) - 정밀식
+            # # Vc = (0.16 √fck + 17.6 ρw Vu d / Mu) b d
+            
+            # Vu_N = Vu * 1000  # N 단위
+            # term2 = 17.6 * rho_w * Vu_N * d / Mu_Nmm if Mu_Nmm != 0 else 0
+            # term2 = min(term2, 1.0)  # Vu·d/Mu ≤ 1.0 제한
+            
+            # Vc = (0.16 * np.sqrt(fck) + term2) * bw * d 
+
+            # 상한값 제한
+            Vc = (1/6 * np.sqrt(fck) + 17.6 * rho_w * Vu*1000 * d / (Mm)) * bw * d
+            # Vc_max = (1/3) * np.sqrt(fck) * bw * d
+            # Vc = min(Vc, Vc_max)
+            
+            vc_method = "정밀식 (Mm ≥ 0)"
+            vc_formula = r"V_c = \left(0.16\sqrt{f_{ck}} + 17.6\rho_w\frac{V_u d}{M_u}\right)b_w d \leq \frac{1}{3}\sqrt{f_{ck}}b_w d"
+
+
         phi_Vc = phi_v * Vc
         half_phi_Vc = 0.5 * phi_Vc
 
+        # 판정 로직
         if check_type == '프리캐스트 (3단계)':
             if Vu * 1000 <= half_phi_Vc:
                 shear_category = "전단철근 불필요"
@@ -172,6 +211,7 @@ def check_shear(In, R):
                 shear_category = "설계전단철근"
                 category_color_hex = "#d32f2f"
 
+        # 최소 전단철근량
         min_Av_s_1_val = 0.0625 * np.sqrt(fck)
         min_Av_s_2_val = 0.35
         min_Av_s_1 = min_Av_s_1_val * (bw / fy_shear)
@@ -180,9 +220,11 @@ def check_shear(In, R):
         min_Av_s_req = max(min_Av_s_1, min_Av_s_2)
         s_from_min_req = Av_stirrup / min_Av_s_req
 
+        # 필요 전단철근량
         Vs_req = (Vu * 1000 - phi_Vc) / phi_v if shear_category == "설계전단철근" else 0
         s_from_vs_req = (Av_stirrup * fy_shear * d) / Vs_req if Vs_req > 0 else float('inf')
         
+        # 최대 간격
         Vs_limit_d4 = (1/3) * np.sqrt(fck) * bw * d
         s_max_code = min(d / 4, 300) if Vs_req > Vs_limit_d4 else min(d / 2, 600)
         
@@ -211,7 +253,7 @@ def check_shear(In, R):
             </div>
             """
 
-
+        # 최종 간격 결정
         if shear_category == "전단철근 불필요":
             actual_s = s_max_code
             stirrups_needed = "전단철근 불필요"
@@ -226,6 +268,7 @@ def check_shear(In, R):
             actual_s = np.floor(actual_s / 5) * 5
             stirrups_needed = f"H{bar_dia}-{legs}leg @{actual_s:.0f}"
 
+        # 최종 강도 계산
         if shear_category == "전단철근 불필요":
             phi_Vs = 0
         else:
@@ -233,6 +276,8 @@ def check_shear(In, R):
         
         phi_Vn = phi_Vc + phi_Vs
         is_safe_strength = (phi_Vn >= Vu * 1000)
+        
+        # 단면 안전성
         Vs_max_limit = (2/3) * np.sqrt(fck) * bw * d
         Vs_provided = phi_Vs / phi_v if phi_Vs > 0 else 0
         is_safe_section = (Vs_provided <= Vs_max_limit)
@@ -240,6 +285,7 @@ def check_shear(In, R):
         
         stirrups_per_meter = 1000 / actual_s if actual_s > 0 and shear_category != "전단철근 불필요" else 0
         
+        # 최종 판정
         final_status_text = ""
         ng_reason = ""
         if not is_safe_section:
@@ -247,189 +293,269 @@ def check_shear(In, R):
             ng_reason = f"전단철근이 부담하는 강도(Vs = {format_number(Vs_provided/1000, 1)} kN)가 최대 허용치(Vs,max = {format_number(Vs_max_limit/1000, 1)} kN)를 초과하여 단면 파괴가 우려됩니다. 단면 크기 상향이 필요합니다."
         elif not is_safe_strength:
             final_status_text = "❌ NG (강도 부족)"
-            ng_reason = f"설계 전단강도(φVn = {format_number(phi_Vn/1000, 1)} kN)가 요구 전단강도(Vu = {format_number(Vu, 1)} kN)보다 작아 안전하지 않습니다."
+            ng_reason = f"설계 전단강도(φVn = {format_number(phi_Vn/1000, 1)} kN)가 요구 강도(Vu = {format_number(Vu, 1)} kN)보다 작습니다. 철근량 증대 또는 단면 상향이 필요합니다."
         else:
-            final_status_text = "✅ OK"
+            final_status_text = "✅ OK (안전)"
+            ng_reason = ""
 
+        # 결과 저장
         results.append({
-            'case': i + 1, 'Pu': Pu, 'Vu': Vu, 'shear_category': shear_category,
-            'category_color': category_color_hex, 'phi_Vn_kN': phi_Vn / 1000, 
-            'is_safe': is_safe_total, 'is_safe_section': is_safe_section, 'actual_s': actual_s,
-            'stirrups_needed': stirrups_needed, 'stirrups_per_meter': stirrups_per_meter,
-            'p_factor':p_factor, 'Vc_N':Vc, 'phi_Vc_N':phi_Vc, 'half_phi_Vc_N':half_phi_Vc,
-            'Vs_req_N':Vs_req, 'min_Av_s_req':min_Av_s_req, 's_from_min_req':s_from_min_req, 
-            's_from_vs_req': s_from_vs_req, 's_max_code':s_max_code, 's_max_reason': s_max_reason,
-            'Vs_limit_d4_N':Vs_limit_d4, 'phi_Vs_N':phi_Vs, 
-            'Vs_provided_N':Vs_provided, 'Vs_max_limit_N':Vs_max_limit,
-            'final_status_text': final_status_text, 'ng_reason': ng_reason,
-            'min_Av_s_1_val': min_Av_s_1_val, 'min_Av_s_2_val': min_Av_s_2_val
+            'case_num': i + 1,
+            'Vu': Vu,
+            'Pu': Pu,
+            'Mu': Mu,
+            'Mm': Mm / 1e6,  # kN·m 단위로 변환
+            'vc_method': vc_method,
+            'vc_formula': vc_formula,
+            'Vc_N': Vc,
+            'phi_Vc_N': phi_Vc,
+            'shear_category': shear_category,
+            'category_color': category_color_hex,
+            'Vs_req_N': Vs_req,
+            's_from_vs_req': s_from_vs_req,
+            'min_Av_s_1_val': min_Av_s_1_val,
+            'min_Av_s_2_val': min_Av_s_2_val,
+            'min_Av_s_req': min_Av_s_req,
+            's_from_min_req': s_from_min_req,
+            's_max_code': s_max_code,
+            's_max_reason': s_max_reason,
+            'actual_s': actual_s,
+            'stirrups_needed': stirrups_needed,
+            'phi_Vs_N': phi_Vs,
+            'phi_Vn_kN': phi_Vn / 1000,
+            'Vs_provided_N': Vs_provided,
+            'Vs_max_limit_N': Vs_max_limit,
+            'is_safe_section': is_safe_section,
+            'is_safe': is_safe_total,
+            'final_status_text': final_status_text,
+            'ng_reason': ng_reason,
+            'stirrups_per_meter': stirrups_per_meter
         })
 
     # =================================================================
-    # 4. 전체 설계 결과 요약 (⭐ 스타일 수정)
+    # 4. 결과 출력 (요약표)
     # =================================================================
-    st.markdown("## 📊 **전체 설계 결과 요약**")
     st.markdown("---")
-
+    st.markdown("## 📊 **전단설계 결과 요약**")
+    
+    def format_N_to_kN(value):
+        return f"{value/1000:,.1f}"
+    
     summary_data = []
     for r in results:
         summary_data.append({
-            'Case': f"Case {r['case']}",
-            '하중조건 (kN)': f"Pu = {format_number(r['Pu'], 0)}\nVu = {format_number(r['Vu'])}",
-            '판정결과': r['shear_category'],
-            '최적 설계': f"{r['stirrups_needed']}",
-            '1m당 개수': f"{r['stirrups_per_meter']:.1f}개" if r['stirrups_per_meter'] > 0 else "—",
-            '설계강도 (kN)': f"φVn = {format_number(r['phi_Vn_kN'])}",
-            '최종 판정': r['final_status_text']
+            'Case': r['case_num'],
+            'Vu (kN)': f"{r['Vu']:.1f}",
+            'Pu (kN)': f"{r['Pu']:.1f}",
+            'Mu (kN·m)': f"{r['Mu']:.1f}",
+            'Mm (kN·m)': f"{r['Mm']:.1f}",
+            'Vc 계산법': r['vc_method'],
+            'φVc (kN)': format_N_to_kN(r['phi_Vc_N']),
+            '판정': r['shear_category'],
+            '배근': r['stirrups_needed'],
+            'φVn (kN)': f"{r['phi_Vn_kN']:.1f}",
+            '최종': '✅ OK' if r['is_safe'] else '❌ NG'
         })
     
     df_summary = pd.DataFrame(summary_data)
-
-    def style_safety(val):
-        color = '#155724' if "✅ OK" in str(val) else '#721c24'
-        bg_color = '#d4edda' if "✅ OK" in str(val) else '#f8d7da'
-        border = '2px solid #c62828' if "❌ NG" in str(val) else 'none'
-        return f'background-color: {bg_color}; color: {color}; font-weight: bold; text-align: center; border: {border};'
-
-    def style_category(val):
-        color_map = {"불필요": "#1565c0", "최소전단철근": "#2b385f", "설계전단철근": "#c62828"}
-        bg_color_map = {"불필요": "#e3f2fd", "최소전단철근": "#e9ebee", "설계전단철근": "#ffebee"}
-        for key in color_map:
-            if key in str(val):
-                return f'background-color: {bg_color_map[key]}; color: {color_map[key]}; font-weight: bold; text-align: center;'
-        return 'text-align: center;'
-
-    # DataFrame Styler 객체를 HTML로 변환하여 markdown으로 출력
-    styled_df_html = (df_summary.style
-        .applymap(style_safety, subset=['최종 판정'])
-        .applymap(style_category, subset=['판정결과'])
-        .set_properties(**{
-            'text-align': 'center',
-            'white-space': 'pre-line',
-            'padding': '15px',
-            'font-size': '20px',
-            'font-weight': '900',
-            'border': '2px solid #000000'  # 셀 테두리
-        })
-        .set_table_styles([
-            # 표 전체 스타일
-            {'selector': '', 'props': [
-                ('width', '100%'),           # 화면 너비에 맞춤
-                ('border-collapse', 'collapse'),
-                ('margin', '0 auto'),        # 가운데 정렬
-                ('box-shadow', '0 2px 10px rgba(0,0,0,0.1)')  # 그림자 효과
-            ]},
-            # 헤더 스타일
-            {'selector': 'th', 'props': [
-                ('background-color', '#39c561'),
-                ('color', 'black'),
-                ('font-weight', 'bold'),
-                ('text-align', 'center'),
-                ('padding', '18px'),
-                ('font-size', '22px'),
-                ('border', '2px solid #000000'),  # 헤더 테두리
-            ]},
-            # 데이터 셀 호버 효과
-            {'selector': 'tr:hover', 'props': [
-                ('background-color', '#f1f1f1'),
-                ('transform', 'scale(1.01)'),     # 살짝 확대
-                ('transition', 'all 0.2s ease')  # 부드러운 전환
-            ]},
-            # 홀수/짝수 행 구분
-            {'selector': 'tr:nth-child(even)', 'props': [
-                ('background-color', '#fafafa')
-            ]},
-            # 외곽 테두리 강화
-            {'selector': 'table', 'props': [
-                ('border', '3px solid #39c561'),
-                ('border-radius', '8px'),         # 모서리 둥글게
-                ('overflow', 'hidden')            # 둥근 모서리 적용
-            ]}
-        ])
-        .hide(axis="index")
-        .to_html())
-
-    st.markdown(styled_df_html, unsafe_allow_html=True)
+    st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
     # =================================================================
-    # 5. 케이스별 상세 계산 과정 (⭐ 스타일 및 내용 수정)
+    # 5. 상세 계산 과정 출력
     # =================================================================
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("## ⚙️ **케이스별 상세 계산 과정**")
+    st.markdown("---")
+    st.markdown("## 📝 **상세 계산 과정**")
     
-    def format_N_to_kN(value, dp=2):
-        return f"{value/1000:,.{dp}f}"
-
-    for i, r in enumerate(results):
-        num_symbols = ["❶", "❷", "❸", "❹", "❺", "❻", "❼", "❽", "❾", "❿"]
-        st.markdown("---")
-        st.markdown(f"### **{num_symbols[i]} Case {r['case']} 검토** (Pu = {format_number(r['Pu'], 0)} kN, Vu = {format_number(r['Vu'])} kN)")
-        st.markdown(f"<h4 style='color: {r['category_color']}; margin-bottom: 25px;'>결과: {r['shear_category']} / {r['stirrups_needed']}</h4>", unsafe_allow_html=True)
-
-        # 단계별 제목 스타일 변경
-        def step_header(text):
-            st.markdown(f"#### **{text}**")
-
-        step_header("1단계: 축력 영향 계수 ($P_{증가}$)")
-        st.latex(r"P_{증가} = 1 + \frac{P_u}{14 \cdot A_g}")
+    def step_header(text):
         st.markdown(f"""
-        <div class="calc-block" style="border-color: #007bff;">
-            <p>P<sub>증가</sub> = 1 + {format_number(r['Pu']*1000, 0)} &divide; (14 &times; {format_number(Ag, 0)}) = <strong>{r['p_factor']:.3f}</strong></p>
+        <div style="background: linear-gradient(90deg, green 0%, #764ba2 100%); 
+                    color: white; padding: 15px 25px; border-radius: 10px; 
+                    margin: 30px 0 20px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0; font-size: 1.6em;">📌 {text}</h3>
         </div>
         """, unsafe_allow_html=True)
 
-        step_header("2단계: 콘크리트 설계 전단강도 ($\phi V_c$)")
-        st.latex(r"\phi V_c = \phi_v \times \left( \frac{1}{6} P_{증가} \lambda \sqrt{f_{ck}} b_w d \right)")
+    for r in results:
         st.markdown(f"""
-        <div class="calc-block" style="border-color: #17a2b8;">
-            <p>φV<sub>c</sub> = {phi_v} &times; (1/6 &times; {r['p_factor']:.3f} &times; {lamda} &times; &radic;{fck} &times; {format_number(bw, 0)} &times; {format_number(d, 0)}) 
-            = <strong>{format_N_to_kN(r['phi_Vc_N'])} kN</strong></p>
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 10px; border-radius: 15px; margin: 40px 0; 
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.15);">
+            <h2 style="color: white; margin: 0; font-size: 2.2em; text-align: center;">
+                ⚙️ Case {r['case_num']} 상세 계산
+            </h2>
         </div>
         """, unsafe_allow_html=True)
+
+        step_header("1단계 : 설계 조건 확인")        
+        st.markdown("<h5><b>■ 하중 조건</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            $\displaystyle
+            \quad\quad \boldsymbol{{V_u}} = {r['Vu']:,.1f}\,\text{{kN}} \quad
+            \boldsymbol{{P_u}} = {r['Pu']:,.1f}\,\text{{kN}} \quad
+            \boldsymbol{{M_u}} = {r['Mu']:,.1f}\,\text{{kN}}·\text{{m}}
+            $
+            
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<h5><b>■ 부재 제원</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            $\displaystyle
+            \quad\quad \boldsymbol{{b_w}} = {bw:,.0f}\,\text{{mm}} \quad
+            \boldsymbol{{d}} = {d:,.0f}\,\text{{mm}} \quad
+            \boldsymbol{{h}} = {h:,.0f}\,\text{{mm}} \quad
+            (d_c = {In.dc[0]:,.1f}\,\text{{mm}})
+            $
+            
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<h5><b>■ 재료 특성</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            $\displaystyle
+            \quad\quad \boldsymbol{{f_{{ck}}}} = {fck:.0f}\,\text{{MPa}} \quad
+            \boldsymbol{{f_{{ys}}}} = {fy_shear:.0f}\,\text{{MPa}} \quad
+            \boldsymbol{{\lambda}} = {lamda:.1f}
+            $
+            
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<h5><b>■ 배근 정보</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            &nbsp;&nbsp; • **인장측 철근**: $\boldsymbol{{A_{{st}}}} = {Ast_tension:,.1f}\,\text{{mm}}^2$
+            
+            &nbsp;&nbsp; • **압축측 철근**: $\boldsymbol{{A_{{sc}}}} = {Ast_compression:,.1f}\,\text{{mm}}^2$
+            
+            &nbsp;&nbsp; • **전단철근**: H{bar_dia}-{legs}leg $\quad (\boldsymbol{{A_v}} = {Av_stirrup:,.1f}\,\text{{mm}}^2)$
+            
+            </div>
+            """, unsafe_allow_html=True)
         
-        step_header("3단계: 전단철근 필요성 판정")
-        if check_type == '프리캐스트 (3단계)':
-            st.latex(r"V_u \text{ vs } \phi V_c, \quad \frac{1}{2}\phi V_c")
-            
-            judgement_str = ""
-            if r['shear_category'] == "전단철근 불필요":
-                judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; ≤ &nbsp; ½φV<sub>c</sub> = {format_N_to_kN(r['half_phi_Vc_N'])} kN"
-            elif r['shear_category'] == "최소전단철근":
-                judgement_str = f"½φV<sub>c</sub> = {format_N_to_kN(r['half_phi_Vc_N'])} kN &nbsp; &lt; &nbsp; V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; ≤ &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
-            else:
-                judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; > &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
-            
-            st.markdown(f"""
-            <div class="calc-block" style="border-color: {r['category_color']};">
-                <p>{judgement_str}</p>
-                <hr style='margin: 10px 0;'>
-                <p style='font-size: 1.25em;'>판정: <strong style='color:{r['category_color']};'>{r['shear_category']}</strong></p>
-            </div>
-            """, unsafe_allow_html=True)
-        else: # 일반 (2단계)
-            st.latex(r"V_u \text{ vs } \phi V_c")
-            judgement_str = ""
-            if r['shear_category'] == "전단철근 불필요":
-                judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; ≤ &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
-            else:
-                judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; > &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
+        step_header("2단계 : M<sub>m</sub>에 의한 φV<sub>c</sub> 산정")
+        st.markdown("<h5><b>■ M<sub>m</sub> (수정 모멘트) 계산</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
 
-            st.markdown(f"""
-            <div class="calc-block" style="border-color: {r['category_color']};">
-                <p>{judgement_str}</p>
-                <hr style='margin: 10px 0;'>
-                <p style='font-size: 1.25em;'>판정: <strong style='color:{r['category_color']};'>{r['shear_category']}</strong></p>
+            &nbsp;&nbsp; ① **일반식**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{M_m}} = \boldsymbol{{M_u}} - \boldsymbol{{P_u}} \times \frac{{4h - d}}{{8}}
+            $
+
+            &nbsp;&nbsp;② **값 대입 및 계산**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{M_m}} =
+            {r['Mu']:,.1f} - {r['Pu']:,.1f} \times
+            \frac{{(4\times{h:,.0f}-{d:,.0f})}}{{8 \times 1,000}}
+            = \mathbf{{{r['Mm']:,.1f}}}\,\text{{kN}}·\text{{m}}
+            $
             </div>
             """, unsafe_allow_html=True)
+
+
+        step_header("3단계: 콘크리트 부담 전단강도 (φV<sub>c</sub>) 계산")
+        st.markdown("<h5><b>■ φV<sub>c</sub> 산정식 선택</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+
+            &nbsp;&nbsp; • <b>M<sub>m</sub> 값 확인</b> : 
+            {r['Mm']:,.1f} kN·m 
+            {('<span style="color:#059669; font-weight:700;">&lt; 0 <strong>(축력 고려식 적용)</strong></span>'
+            if r['Mm'] < 0 
+            else '<span style="color:#059669; font-weight:700;">&ge; 0 <strong>(정밀식 적용)</strong></span>')}
+            </div>
+            """, unsafe_allow_html=True)
+
+        
+        st.markdown("<h5><b>■ 축력 고려식 (M<sub>m</sub> < 0)</b></h5>", unsafe_allow_html=True)
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            &nbsp;&nbsp; ① **일반식**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{\phi V_c}} = \phi \times 0.29 \lambda \sqrt{{f_{{ck}}}} \times b_w \times d \times \sqrt{{1 + \frac{{N_u}}{{3.5 A_g}}}}
+            $
+            
+            &nbsp;&nbsp;② **값 대입 및 계산**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{\phi V_c}} = 
+            0.75 \times 0.29 \times 1.0 \times \sqrt{{{fck}}} \times {bw:,.0f} \times {d:,.0f} \times \sqrt{{1 + \frac{{{r['Pu']:,.1f} \times 1,000}}{{3.5 \times {Ag:,.0f}}}}}
+            $
+            
+            $\displaystyle
+            \quad\quad\quad\quad\quad\,\,\, = \mathbf{{{r['phi_Vc_N']/1000:,.1f}}}\,\text{{kN}}
+            $
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<h5><b>■ 정밀식 (전단력과 휨 모멘트 고려) (M<sub>m</sub> > 0)</b></h5>", unsafe_allow_html=True)
+        phi_Vc = 0.75 * (1/6 * np.sqrt(fck) + 17.6 * rho_w * r['Vu'] * d / (r['Mm'] * 1000)) * bw * d
+        # print("Mm : ", r['Mm'])
+        st.markdown(rf"""
+            <div style="font-size:18px; line-height:1.8;">
+            
+            &nbsp;&nbsp; ① **일반식**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{\phi V_c}} = \phi \times \left(\frac{{1}}{{6}}\lambda\sqrt{{f_{{ck}}}}\; + \;17.6 \rho_w \frac{{V_u  d}}{{M_u}}\right) b_w \times d
+            $
+            
+            &nbsp;&nbsp;② **철근비 계산**  
+            $\displaystyle
+            \quad\quad \rho_w = \frac{{A_s}}{{b_w \times d}} = \frac{{{As:,.0f}}}{{{bw:,.0f} \times {d:,.0f}}} = {rho_w:.4f}
+            $
+            
+            &nbsp;&nbsp;③ **값 대입 및 계산**  
+            $\displaystyle
+            \quad\quad \boldsymbol{{\phi V_c}} = 
+            0.75 \times \left(\frac{{1}}{{6}} \times 1.0 \times \sqrt{{{fck}}} \; + \; 17.6 \times {rho_w:.4f} \times \frac{{{r['Vu']:,.1f} \times {d:,.0f}}}{{{r['Mm']:,.1f} \times 1,000}}\right) \times {bw:,.0f} \times {d:,.0f}
+            $
+            
+            $\displaystyle
+            \quad\quad\quad\quad\quad\,\,\, = \mathbf{{{phi_Vc/1000:,.1f}}}\,\text{{kN}}
+            $
+            </div>
+            """, unsafe_allow_html=True)
+
+        step_header("4단계: 전단철근 판정")
+        # # st.latex(r['vc_formula'])
+        st.markdown(f"""
+        <div class="calc-block" style="border-color: #4ecdc4;">
+            <p>V<sub>c</sub> = <strong>{format_N_to_kN(r['Vc_N'])} kN</strong></p>
+            <p>φV<sub>c</sub> = {phi_v} × {format_N_to_kN(r['Vc_N'])} = <strong>{format_N_to_kN(r['phi_Vc_N'])} kN</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 판정
+        judgement_str = ""
+        if r['shear_category'] == "전단철근 불필요":
+            judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; ≤ &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
+        else:
+            judgement_str = f"V<sub>u</sub> = {format_number(r['Vu'])} kN &nbsp; > &nbsp; φV<sub>c</sub> = {format_N_to_kN(r['phi_Vc_N'])} kN"
+
+        st.markdown(f"""
+        <div class="calc-block" style="border-color: {r['category_color']};">
+            <p>{judgement_str}</p>
+            <hr style='margin: 10px 0;'>
+            <p style='font-size: 1.25em;'>판정 : <strong style='color:{r['category_color']};'>{r['shear_category']}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
 
         if r['shear_category'] != "전단철근 불필요":
-            step_header("4단계: 필요 전단철근량 및 간격 계산")
+            step_header("5단계: 필요 전단철근량 및 간격 계산")
 
             st.markdown("<h5><b>■ 전단철근 단면적 (A<sub>v</sub>) 산정</b></h5>", unsafe_allow_html=True)
             st.latex(r"A_v = n \times \frac{\pi D^2}{4}")
             st.markdown(f"""
             <div class="calc-block" style="border-color: #6f42c1;">
-                <p>A<sub>v</sub> = {legs} &times; (π &times; {bar_dia}<sup>2</sup> &divide; 4) = <strong>{Av_stirrup:.1f} mm²</strong></p>
+                <p>A<sub>v</sub> = {legs} × (π × {bar_dia}<sup>2</sup> ÷ 4) = <strong>{Av_stirrup:.1f} mm²</strong></p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -438,14 +564,15 @@ def check_shear(In, R):
                 st.latex(r"V_s = \frac{V_u - \phi V_c}{\phi_v}")
                 st.markdown(f"""
                 <div class="calc-block" style="border-color: #6f42c1;">
-                    <p>V<sub>s,req</sub> = ({format_number(r['Vu'])} - {format_N_to_kN(r['phi_Vc_N'])}) &divide; {phi_v} = <strong>{format_N_to_kN(r['Vs_req_N'])} kN</strong></p>
+                    <p>V<sub>s,req</sub> = ({format_number(r['Vu'])} - {format_N_to_kN(r['phi_Vc_N'])}) ÷ {phi_v} = <strong>{format_N_to_kN(r['Vs_req_N'])} kN</strong></p>
                 </div>
                 """, unsafe_allow_html=True)
+                
                 st.markdown("<h5><b>■ 강도 요구조건에 의한 간격 (s<sub>강도요구</sub>) 산정</b></h5>", unsafe_allow_html=True)
                 st.latex(r"s_{강도요구} \leq \frac{A_v f_{yt} d}{V_s}")
                 st.markdown(f"""
                 <div class="calc-block" style="border-color: #6f42c1;">
-                    <p>간격 (강도) = ({Av_stirrup:.1f} &times; {fy_shear} &times; {format_number(d,0)}) &divide; {format_number(r['Vs_req_N'], 0)} = <strong>{format_number(r['s_from_vs_req'])} mm</strong></p>
+                    <p>간격 (강도) = ({Av_stirrup:.1f} × {fy_shear} × {format_number(d,0)}) ÷ {format_number(r['Vs_req_N'], 0)} = <strong>{format_number(r['s_from_vs_req'])} mm</strong></p>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -453,18 +580,19 @@ def check_shear(In, R):
             st.latex(r"(\frac{A_v}{s})_{min} = \max\left(0.0625\sqrt{f_{ck}}\frac{b_w}{f_{yt}}, 0.35\frac{b_w}{f_{yt}}\right)")
             st.markdown(f"""
             <div class="calc-block" style="border-color: #6610f2;">
-                <p>(A<sub>v</sub>/s)<sub>min</sub> = max( {r['min_Av_s_1_val']:.4f} &times; {bw}/{fy_shear}, {r['min_Av_s_2_val']} &times; {bw}/{fy_shear} )</p>
+                <p>(A<sub>v</sub>/s)<sub>min</sub> = max( {r['min_Av_s_1_val']:.4f} × {bw}/{fy_shear}, {r['min_Av_s_2_val']} × {bw}/{fy_shear} )</p>
                 <p>= max( {min_Av_s_1:.4f}, {min_Av_s_2:.4f} ) = <strong>{r['min_Av_s_req']:.4f}</strong></p>
             </div>
             """, unsafe_allow_html=True)
+            
             st.latex(r"s_{최소철근} \leq \frac{A_v}{(\frac{A_v}{s})_{min}}")
             st.markdown(f"""
             <div class="calc-block" style="border-color: #6610f2;">
-                <p>간격 (최소철근) = {Av_stirrup:.1f} &divide; {r['min_Av_s_req']:.4f} = <strong>{format_number(r['s_from_min_req'])} mm</strong></p>
+                <p>간격 (최소철근) = {Av_stirrup:.1f} ÷ {r['min_Av_s_req']:.4f} = <strong>{format_number(r['s_from_min_req'])} mm</strong></p>
             </div>
             """, unsafe_allow_html=True)
 
-            step_header("5단계: 최대 허용 간격 결정")
+            step_header("6단계: 최대 허용 간격 결정")
             st.markdown(f"""            
                 <p style="font-size:1.1em; color:#856404; margin:0;">{r['s_max_reason']}</p>            
             """, unsafe_allow_html=True)
@@ -475,7 +603,7 @@ def check_shear(In, R):
             </div>
             """, unsafe_allow_html=True)
             
-            step_header("6단계: 최종 전단철근 간격 결정")
+            step_header("7단계: 최종 전단철근 간격 결정")
             st.latex(r"s_{final} = \text{floor}\left( \min(s_{계산값}, s_{max}) \right)")
             
             s_final_calc_str = ""
@@ -491,26 +619,26 @@ def check_shear(In, R):
             </div>
             """, unsafe_allow_html=True)
 
+            step_header(f"8단계: 최대 전단강도 검토 (단면 안전성)")
+            st.latex(r"V_s \leq V_{s,max} = \frac{2}{3}\sqrt{f_{ck}}b_w d")
+            
+            section_check_color = "#28a745" if r['is_safe_section'] else "#dc3545"
+            section_check_status = "OK" if r['is_safe_section'] else "NG"
+            st.markdown(f"""
+            <div class="calc-block" style="border-color: {section_check_color};">
+                <p>V<sub>s,배근</sub> = φV<sub>s</sub> / φ<sub>v</sub> = {format_N_to_kN(r['phi_Vs_N'])} ÷ {phi_v} = <strong>{format_N_to_kN(r['Vs_provided_N'])} kN</strong></p>
+                <p>V<sub>s,max</sub> = (2/3) × √{fck} × {format_number(bw, 0)} × {format_number(d, 0)} = <strong>{format_N_to_kN(r['Vs_max_limit_N'])} kN</strong></p>
+                <hr style='margin: 10px 0;'>
+                <p style='font-size: 1.25em;'>V<sub>s,배근</sub> ≤ V<sub>s,max</sub> 판정: <strong style='color:{section_check_color};'>{section_check_status}</strong></p>
+            </div>
+
+            """, unsafe_allow_html=True)
         # 단계 번호 조정
-        final_check_start_num = 7
+        final_check_start_num = 9
         if r['shear_category'] == "전단철근 불필요":
-            final_check_start_num = 4
+            final_check_start_num = 5
 
-        step_header(f"{final_check_start_num}단계: 최대 전단강도 검토 (단면 안전성)")
-        st.latex(r"V_s \leq V_{s,max} = \frac{2}{3}\sqrt{f_{ck}}b_w d")
-        
-        section_check_color = "#28a745" if r['is_safe_section'] else "#dc3545"
-        section_check_status = "OK" if r['is_safe_section'] else "NG"
-        st.markdown(f"""
-        <div class="calc-block" style="border-color: {section_check_color};">
-            <p>V<sub>s,배근</sub> = φV<sub>s</sub> / φ<sub>v</sub> = {format_N_to_kN(r['phi_Vs_N'])} &divide; {phi_v} = <strong>{format_N_to_kN(r['Vs_provided_N'])} kN</strong></p>
-            <p>V<sub>s,max</sub> = (2/3) &times; &radic;{fck} &times; {format_number(bw, 0)} &times; {format_number(d, 0)} = <strong>{format_N_to_kN(r['Vs_max_limit_N'])} kN</strong></p>
-            <hr style='margin: 10px 0;'>
-            <p style='font-size: 1.25em;'>V<sub>s,배근</sub> ≤ V<sub>s,max</sub> 판정: <strong style='color:{section_check_color};'>{section_check_status}</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        step_header(f"{final_check_start_num + 1}단계: 최종 안전성 검토")
+        step_header(f"{final_check_start_num}단계: 최종 안전성 검토")
         result_color = "#28a745" if r['is_safe'] else "#dc3545"
         result_icon = "✅" if r['is_safe'] else "❌"
         

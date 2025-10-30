@@ -63,19 +63,19 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     fck = float(getattr(In, 'fck', 24))
     
     ws.write(row, start_col, "계산", formats['label'])
-    calculation_text = f"{M0_case*1e6:.0f} × {y:.1f} / {I:.0f} - {P0_case*1000:.0f} / {A:.0f} = {stress_term:.1f} MPa"
+    calculation_text = f"{M0_case*1e6:,.0f} × {y:,.1f} / {I:,.0f} - {P0_case*1000:,.0f} / {A:.0f} = {stress_term:,.1f} MPa"
     ws.merge_range(row, start_col + 1, row, start_col + 6, calculation_text, formats['calculation'])
     row += 1
     
     ws.write(row, start_col, "한계값", formats['label'])
-    limit_text = f"0.63 × √{fck:.1f} = 0.63 × {math.sqrt(fck):.1f} = {crack_limit:.1f} MPa"
+    limit_text = f"0.63 × √{fck:.1f} = 0.63 × {math.sqrt(fck):.1f} = {crack_limit:,.1f} MPa"
     ws.merge_range(row, start_col + 1, row, start_col + 6, limit_text, formats['calculation'])
     row += 1
 
     # 균열 판정 결과
     if not is_cracked:
         ws.merge_range(row, start_col, row + 1, start_col + 6, 
-                      f"✅ 비균열 단면\n{stress_term:.1f} MPa < {crack_limit:.1f} MPa\n🎉 균열 검토 불필요", 
+                      f"✅ 비균열 단면\n{stress_term:,.1f} MPa < {crack_limit:,.1f} MPa\n🎉 균열 검토 불필요", 
                       formats['no_crack_box'])
         ws.set_row(row, 50)
         row += 2
@@ -87,17 +87,17 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
 
     # 균열 단면인 경우
     ws.merge_range(row, start_col, row + 1, start_col + 6, 
-                  f"⚠️ 균열 단면\n{stress_term:.1f} MPa ≥ {crack_limit:.1f} MPa\n🔍 균열 검토 필요", 
+                  f"⚠️ 균열 단면\n{stress_term:,.1f} MPa ≥ {crack_limit:,.1f} MPa\n🔍 균열 검토 필요", 
                   formats['crack_box'])
     ws.set_row(row, 50)
     row += 2
 
     # 케이스 분류
     if P0_case == 0:
-        case_title = f"🎯 Case Ⅰ: 특수한 경우\n순수 휨 (P₀ = {P0_case:.1f} kN, M₀ = {M0_case:.1f} kN·m)\n📊 보(Beam)에 해당 - 해석적 풀이 적용"
+        case_title = f"🎯 Case Ⅰ: 특수한 경우\n순수 휨 (P₀ = {P0_case:,.1f} kN, M₀ = {M0_case:,.1f} kN·m)\n📊 보(Beam)에 해당 - 해석적 풀이 적용"
         box_format = formats['case_special_box']
     else:
-        case_title = f"⚙️ Case Ⅱ: 일반적인 경우\n축력+휨 (P₀ = {P0_case:.1f} kN, M₀ = {M0_case:.1f} kN·m)\n🏛️ 기둥(Column)에 해당 - 수치해석 필요"
+        case_title = f"⚙️ Case Ⅱ: 일반적인 경우\n축력+휨 (P₀ = {P0_case:,.1f} kN, M₀ = {M0_case:,.1f} kN·m)\n🏛️ 기둥(Column)에 해당 - 수치해석 필요"
         box_format = formats['case_general_box']
     
     ws.merge_range(row, start_col, row + 2, start_col + 6, case_title, box_format)
@@ -125,10 +125,10 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
         ws.merge_range(row, start_col + 1, row, start_col + 6, "직접 풀이 불가능하여 반복계산 통해 도출", formats['explanation'])
         row += 1
         ws.write(row, start_col, "중립축", formats['label'])
-        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:.1f} mm (수치해)", formats['result_value'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:,.1f} mm (수치해)", formats['result_value'])
         row += 1
         ws.write(row, start_col, "철근응력", formats['label'])
-        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:.1f} MPa (수치해)", formats['result_value'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:,.1f} MPa (수치해)", formats['result_value'])
         row += 1
         
     else:
@@ -148,10 +148,10 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
         ws.merge_range(row, start_col + 1, row, start_col + 6, "비선형 연립방정식 → fsolve 등 반복계산 필요", formats['explanation'])
         row += 1
         ws.write(row, start_col, "중립축", formats['label'])
-        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:.1f} mm (수치해)", formats['result_value'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"x = {x_case:,.1f} mm (수치해)", formats['result_value'])
         row += 1
         ws.write(row, start_col, "철근응력", formats['label'])
-        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:.1f} MPa (수치해)", formats['result_value'])
+        ws.merge_range(row, start_col + 1, row, start_col + 6, f"fs = {fs_case:,.1f} MPa (수치해)", formats['result_value'])
         row += 1
 
     # --- B. 휨균열 제어 검토 ---
@@ -166,7 +166,7 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     ws.merge_range(row, start_col + 1, row, start_col + 6, "fst = fs × (h - dc - x) / (d - x) ≈ fs", formats['formula'])
     row += 1
     ws.write(row, start_col, "결과", formats['label'])
-    ws.merge_range(row, start_col + 1, row, start_col + 6, f"fst = {fst_case:.1f} MPa", formats['result_value'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, f"fst = {fst_case:,.1f} MPa", formats['result_value'])
     row += 1
 
     # Step 2: 최대 허용 간격 산정
@@ -180,7 +180,7 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     
     s_allowed_1 = 375 * (210 / fst_case) - 2.5 * In.Cc if fst_case > 0 else float('inf')
     ws.write(row, start_col, "계산", formats['label'])
-    calc_text_1 = f"s₁ = 375 × (210 / {fst_case:.1f}) - 2.5 × {In.Cc:.1f} = {s_allowed_1:.1f} mm"
+    calc_text_1 = f"s₁ = 375 × (210 / {fst_case:,.1f}) - 2.5 × {In.Cc:,.1f} = {s_allowed_1:,.1f} mm"
     ws.merge_range(row, start_col + 1, row, start_col + 6, calc_text_1, formats['calculation'])
     row += 1
     
@@ -191,14 +191,14 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     
     s_allowed_2 = 300 * (210 / fst_case) if fst_case > 0 else float('inf')
     ws.write(row, start_col, "계산", formats['label'])
-    calc_text_2 = f"s₂ = 300 × (210 / {fst_case:.1f}) = {s_allowed_2:.1f} mm"
+    calc_text_2 = f"s₂ = 300 × (210 / {fst_case:,.1f}) = {s_allowed_2:,.1f} mm"
     ws.merge_range(row, start_col + 1, row, start_col + 6, calc_text_2, formats['calculation'])
     row += 1
     
     # 최종 허용 간격
     s_allowed_final = min(s_allowed_1, s_allowed_2)
     ws.write(row, start_col, "최종 허용", formats['label'])
-    ws.merge_range(row, start_col + 1, row, start_col + 6, f"sallow = min(s₁, s₂) = {s_allowed_final:.1f} mm", formats['result_value_bold'])
+    ws.merge_range(row, start_col + 1, row, start_col + 6, f"sallow = min(s₁, s₂) = {s_allowed_final:,.1f} mm", formats['result_value_bold'])
     row += 1
 
     # Step 3: 최종 판정
@@ -206,20 +206,20 @@ def _render_case_to_excel(ws, start_row, start_col, data, In, i, symbol, formats
     row += 1
     
     ws.write(row, start_col, "최종 허용 간격", formats['metric_label'])
-    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{s_allowed_final:.1f} mm", formats['metric_value'])
+    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{s_allowed_final:,.1f} mm", formats['metric_value'])
     ws.merge_range(row, start_col + 3, row, start_col + 6, "Min(s₁, s₂)", formats['metric_note'])
     row += 1
     
     ws.write(row, start_col, "실제 배근 간격", formats['metric_label'])
-    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{In.sb[0]:.1f} mm", formats['metric_value'])
+    ws.merge_range(row, start_col + 1, row, start_col + 2, f"{In.sb[0]:,.1f} mm", formats['metric_value'])
     row += 1
 
     # 최종 판정 결과
     if In.sb[0] <= s_allowed_final:
-        result_text = f"✅ O.K. (배근 간격 {In.sb[0]:.1f} mm ≤ 허용 간격 {s_allowed_final:.1f} mm)"
+        result_text = f"✅ O.K. (배근 간격 {In.sb[0]:.1f} mm ≤ 허용 간격 {s_allowed_final:,.1f} mm)"
         result_format = formats['result_success']
     else:
-        result_text = f"❌ N.G. (배근 간격 {In.sb[0]:.1f} mm > 허용 간격 {s_allowed_final:.1f} mm)"
+        result_text = f"❌ N.G. (배근 간격 {In.sb[0]:.1f} mm > 허용 간격 {s_allowed_final:,.1f} mm)"
         result_format = formats['result_error']
     
     ws.merge_range(row, start_col, row + 1, start_col + 6, result_text, result_format)
@@ -294,19 +294,19 @@ def create_serviceability_sheet(wb, In, R, F):
         }),
         'no_crack_box': wb.add_format({**base_font,
             'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
-            'fg_color': '#6a766d', 'font_color': 'white', 'border': 1, 'text_wrap': True
+            'font_color': 'green', 'border': 1, 'text_wrap': True
         }),
         'crack_box': wb.add_format({**base_font,
             'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
-            'fg_color': '#4e3141', 'font_color': 'white', 'border': 1, 'text_wrap': True
+             'font_color': 'purple', 'border': 1, 'text_wrap': True
         }),
         'case_special_box': wb.add_format({**base_font,
             'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
-            'fg_color': '#2E7D32', 'font_color': 'white', 'border': 1, 'text_wrap': True
+            'font_color': 'magenta', 'border': 1, 'text_wrap': True
         }),
         'case_general_box': wb.add_format({**base_font,
             'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',
-            'fg_color': '#1565C0', 'font_color': 'white', 'border': 1, 'text_wrap': True
+            'font_color': 'blue', 'border': 1, 'text_wrap': True
         }),
         'result_success': wb.add_format({**base_font,
             'bold': True, 'font_size': 12, 'align': 'center', 'valign': 'vcenter',

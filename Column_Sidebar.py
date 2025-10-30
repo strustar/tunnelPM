@@ -144,9 +144,9 @@ def initialize_material_properties():
     defaults = {
         'fck': 27.0, 'fy': 400.0, 'Es': 200.0,
         'f_fu': 800.0, 'Ef': 200.0,
-        'be': 1000.0, 'height': 300.0,
-        'sb': 150.0, 'dia': 22.2, 'dc': 60.0,
-        'dia1': 22.2, 'dc1': 60.0,
+        'be': 1000.0, 'height': 350.0,
+        'sb': 150.0, 'dia': 25.4, 'dc': 60.0,
+        'dia1': 25.4, 'dc1': 60.0,
         'column_type': 'Tied Column',
         'pm_type': '이형철근 \u00a0 vs. \u00a0 중공철근',
         'row_count': 3, 'shear_strength_count': 3, 'serviceability_count': 3,
@@ -198,43 +198,6 @@ def Sidebar():
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # ===== 계산 실행 사용법 (버튼 위) =====
-    with sb.expander('📖 **계산 실행 사용법**', expanded=False):
-        st.markdown("""
-<div class="sidebar-wrap">
-
-### 🎯 간단한 사용법
-
-**1단계: 입력값 설정**  
-- 아래 입력 필드에서 콘크리트 강도, 철근 강도 등을 입력하세요  
-- 테이블에서 ➕ 버튼으로 행을 추가할 수 있습니다  
-
-**2단계: 계산 실행**  
-- 모든 값을 입력한 후 **🚀 계산 실행** 버튼을 클릭하세요  
-- 메인 화면에 결과가 표시됩니다  
-
-**3단계: 결과 확인**  
-- PM 상관도, 강도 검토, 전단 검토 등을 탭에서 확인하세요  
-- 엑셀 파일로 다운로드할 수 있습니다  
-
----
-
-### 💡 팁
-- 입력값을 변경해도 결과는 그대로 유지됩니다  
-- 새로 계산하려면 다시 **🚀** 버튼을 누르세요
-</div>
-        """, unsafe_allow_html=True)
-
-    # ===== 계산 실행 버튼 =====
-    if sb.button("🚀 계산 실행", use_container_width=True, type="primary"):
-        st.session_state.run_calculation = True
-        st.session_state.has_result = False
-    In.should_run = st.session_state.run_calculation
-    if st.session_state.run_calculation:
-        st.session_state.run_calculation = False
-
-    sb.markdown(side_border, unsafe_allow_html=True)
 
     # ================================
     # 💾 프리셋 관리 (불러오기/저장)

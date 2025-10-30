@@ -680,7 +680,7 @@ def PM_plot(In, R, F, loc, selected_row):
                 
                 # 수렴 확인
                 error = e_calc - target_e
-                if abs(error) < 0.001:  # 0.5mm 허용오차
+                if abs(error) < 0.01:  # 0.5mm 허용오차
                     # 강도감소계수 계산
                     dt = dsi[0, 1]  # 인장철근 위치
                     

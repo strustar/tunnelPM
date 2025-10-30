@@ -160,7 +160,7 @@ def excel_data_sheet(In, R, F, path):
         import Excel_Shear
         shear_ws = Excel_Shear.create_shear_sheet(wb, In, R)
 
-        shear_ws.activate()
+        column_ws.activate()
 
 
     

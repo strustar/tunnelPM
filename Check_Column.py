@@ -259,6 +259,10 @@ def check_column(In, R, F):
                 safety_factor = np.sqrt(phiPn**2 + phiMn**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 0 else np.inf
                 sf_status = "안전" if safety_factor >= 1.0 else "위험"
                 sf_color = "ok" if safety_factor >= 1.0 else "ng"
+                if material_type == '이형철근':
+                    In.safe_RC[case_idx] = safety_factor
+                elif material_type == '중공철근':
+                    In.safe_FRP[case_idx] = safety_factor
 
                 html = f"""
                 <div class="detailed-calc-container">
@@ -270,7 +274,7 @@ def check_column(In, R, F):
                     <ul>
                         <li><b>특별 조건:</b> <code>{condition_str}</code></li>
                         <li>작용 하중: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN</code>, <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m</code></li>
-                        <li>결정된 중립축: <code>c = {c_assumed:,.1f} mm</code> (사전 계산값)</li>
+                        <li>중립축: <code>c = {c_assumed:,.1f} mm</code> (사전 계산값)</li>
                     </ul><hr>
                     <b>6. 최종 검토 및 안전성 평가</b>
                     <ul>
@@ -304,7 +308,7 @@ def check_column(In, R, F):
             if hasattr(phiMn_values, 'tolist'): phiMn_values = phiMn_values.tolist()
             if hasattr(SF_values, 'tolist'): SF_values = SF_values.tolist()
 
-            c_assumed, phiPn, phiMn, SF = c_values[case_idx], phiPn_values[case_idx], phiMn_values[case_idx], SF_values[case_idx]
+            c_assumed = c_values[case_idx]            
             e_actual = (Mu / Pu) * 1000 if Pu != 0 else np.inf
 
             # --- 2. 계산을 위한 재료 및 단면 속성 설정 (사용자 제공 로직 통합) ---
@@ -405,8 +409,18 @@ def check_column(In, R, F):
                     phi_factor = phi0 + (0.85 - phi0) * (eps_t - ep_tccl) / (ep_ttcl - ep_tccl)
                     phi_basis = f"<span class='math-expr'>ε<sub>ty</sub></span>({ep_tccl:.5f}) < <span class='math-expr'>ε<sub>t</sub></span>({eps_t:.5f}) < {ep_ttcl:.5f} 이므로, <b>변화구간</b>에 해당합니다."
 
+
+            phiPn, phiMn = Pn*phi_factor, Mn*phi_factor
             # --- 6. 안전율 계산 ---
-            safety_factor = np.sqrt(phiPn**2 + phiMn**2) / np.sqrt(Pu**2 + Mu**2) if Pu > 0 and Mu > 0 else 0
+            safety_factor = np.sqrt(phiPn**2 + phiMn**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 1e-9 else 0
+            if material_type == '이형철근':
+                # 첫 번째 실행(이형철근)일 때는 값만 저장합니다.
+                In.safe_RC[case_idx] = safety_factor
+            elif material_type == '중공철근':
+                # 두 번째 실행(중공철근)일 때, 저장된 이형철근 값과
+                # 현재 계산된 중공철근 값을 함께 사용해 placeholder를 업데이트합니다.
+                In.safe_FRP[case_idx] = safety_factor
+            
             sf_status = "안전" if safety_factor >= 1.0 else "위험"
             sf_color = "ok" if safety_factor >= 1.0 else "ng"
 
@@ -429,12 +443,12 @@ def check_column(In, R, F):
                 <b>1. 기본 정보 및 설계계수</b>
                 <ul>
                     <li>적용 기준: <code>{RC_Code}</code>, 기둥 형식: <code>{Column_Type}</code></li>
-                    <li>콘크리트 계수: <code><span class='math-expr'>β₁</span> = {beta1:.1f}</code>, <code><span class='math-expr'>η</span> = {eta:.1f}</code>, <code><span class='math-expr'>ε<sub>cu</sub></span> = {ep_cu:.4f}</code></li>
+                    <li>콘크리트: <code><span class='math-expr'>β₁</span> = {beta1:.1f}</code>, <code><span class='math-expr'>η</span> = {eta:.1f}</code>, <code><span class='math-expr'>ε<sub>cu</sub></span> = {ep_cu:.4f}</code>, <code><span class='math-expr'>f<sub>ck</sub></span> = {fck:,.0f} MPa</code></li>
                     <li>철근 재료: <code><span class='math-expr'>f<sub>y</sub></span> = {fy:,.0f} MPa</code>, <code><span class='math-expr'>E<sub>s</sub></span> = {Es:,.0f} MPa</code> {'(중공철근)' if 'hollow' in Reinforcement_Type else '(이형철근)'}</li>
                     <li>작용 하중: <code><span class='math-expr'>P<sub>u</sub></span> = {Pu:,.1f} kN</code>, <code><span class='math-expr'>M<sub>u</sub></span> = {Mu:,.1f} kN·m</code> (편심 <code>e = {e_actual:,.1f} mm</code>)</li>
-                    <li>가정된 중립축: <code>c = {c_assumed:,.1f} mm</code> (시행착오법으로 결정)</li>
+                    <li>중립축: <code>c = {c_assumed:,.1f} mm</code> (시행착오법으로 결정)</li>
                 </ul><hr>
-                <b>2. 변형률 호환 및 응력 계산</b>
+                <b>2. 변형률 및 응력 계산</b>
                 <ul>
                     <li><b>변형률 계산:</b> <code><span class='math-expr'>ε<sub>s</sub> = ε<sub>cu</sub> × (c - d<sub>s</sub>) / c</span></code></li>
                     <li>압축측 철근 (d<sub>s</sub>={dsi[0,0]:.1f}mm): <code><span class='math-expr'>ε<sub>sc</sub></span> = {ep_si[0,0]:.4f}</code> → <code><span class='math-expr'>f<sub>sc</sub></span> = {fsi[0,0]:,.1f} MPa</code></li>
@@ -577,29 +591,17 @@ def check_column(In, R, F):
                         Pd = float(Pd_iter_values[i])
                         Md = float(Md_iter_values[i])
 
-                    safety_factor = np.sqrt(Pd**2 + Md**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 0 else np.inf
-                    
                     # --- 🎯 여기가 최종 수정된 사이드바 업데이트 로직입니다 ---
                     if material_type == '이형철근':
                         # 첫 번째 실행(이형철근)일 때는 값만 저장합니다.
-                        In.safe_RC[i] = safety_factor
+                        safety_factor = In.safe_RC[i]
                     elif material_type == '중공철근':
                         # 두 번째 실행(중공철근)일 때, 저장된 이형철근 값과
                         # 현재 계산된 중공철근 값을 함께 사용해 placeholder를 업데이트합니다.
-                        In.safe_FRP[i] = safety_factor
-                        if In.placeholder_strength and i < len(In.placeholder_strength) and In.placeholder_strength[i] is not None:
-                            # 안전율 값에 따라 색상 동적 변경
-                            color_rc = 'green' if In.safe_RC[i] >= 1.0 else 'red'
-                            color_frp = 'green' if In.safe_FRP[i] >= 1.0 else 'red'
-                            
-                            In.placeholder_strength[i].markdown(
-                                f"""<div style='text-align:center; font-weight:bold;'>
-                                    <span style='color:{color_rc};'>{In.safe_RC[i]:.1f}</span> / <span style='color:{color_frp};'>{In.safe_FRP[i]:.1f}</span>
-                                </div>""",
-                                unsafe_allow_html=True
-                            )
+                        safety_factor = In.safe_FRP[i]
                     # --- 수정 끝 ---
                     
+                    safety_factor = np.sqrt(Pd**2 + Md**2) / np.sqrt(Pu**2 + Mu**2) if (Pu**2 + Mu**2) > 1e-9 else np.inf
                     e = (Mu / Pu) * 1000 if Pu != 0 else np.inf
                     verdict = 'PASS' if safety_factor >= 1.0 else 'FAIL'
                     
@@ -723,7 +725,20 @@ def check_column(In, R, F):
         # For "중공철근", pass the 'F' object as PM_obj
         create_report_column(col2, "📊 중공철근 검토", In, F, "중공철근")
         st.markdown('</div>', unsafe_allow_html=True)
-        
+
+        for i in range(len(In.placeholder_strength)):
+            if In.placeholder_strength and i < len(In.placeholder_strength) and In.placeholder_strength[i] is not None:
+                # 안전율 값에 따라 색상 동적 변경
+                color_rc = 'green' if In.safe_RC[i] >= 1.0 else 'red'
+                color_frp = 'green' if In.safe_FRP[i] >= 1.0 else 'red'
+                
+                In.placeholder_strength[i].markdown(
+                    f"""<div style='text-align:center; font-weight:bold;'>
+                        <span style='color:{color_rc};'>{In.safe_RC[i]:.1f}</span> / <span style='color:{color_frp};'>{In.safe_FRP[i]:.1f}</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+
     except Exception as e:
         st.error(f"⚠️ 보고서 생성 중 오류 발생: {e}")
         import traceback

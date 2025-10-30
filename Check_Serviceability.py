@@ -150,7 +150,7 @@ def display_header():
         <h1>🏗️ RC 사용성 검토</h1>
         <p>응력 및 균열 제어 완전 가이드</p>
     </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) 
 
 def display_theory_background():
     """이론적 배경을 표시합니다."""

@@ -143,7 +143,7 @@ def create_column_ui(In, sb, side_border="", h4=""):
             min_value=float(min_val),   # ← 적용
             value=default_val,
             step=step,
-            format="%.0f",
+            format="%f",
             key=f"{attr}_{section_key}_{row_index}_{row_count}",
             label_visibility="collapsed"
         )
@@ -237,8 +237,8 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def create_strength_section():
         """기둥 강도 검토 섹션 전체 생성"""
         strength_spec_full = {
-            "Pu":    ("P_u",    "[kN]",   [1000.0, 2000.0, 3000.0], 100.0),
-            "Mu":    ("M_u",    "[kN·m]", [120.0,  150.0,  180.0],  10.0),
+            "Pu":    ("P_u",    "[kN]",   [2381.86, 3113.34, 1000.0], 100.0),
+            "Mu":    ("M_u",    "[kN·m]", [271.38,  30.23,  180.0],  10.0),
             "검토":  ("검토",   "",       [0.0,    0.0,    0.0],    0.0),  # placeholder
         }
         strength_spec_items = [
@@ -277,7 +277,7 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def delete_shear_strength_row(row_index):
         """전단 강도 검토 행 삭제"""
         if st.session_state.shear_strength_count > 3 and row_index >= 3:
-            for attr in ['Pu_shear', 'Vu']:
+            for attr in ['Vu']:
                 current_list = getattr(In, attr, [])
                 if row_index < len(current_list):
                     current_list.pop(row_index)
@@ -293,12 +293,10 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def create_shear_strength_section():
         """전단 강도 검토 섹션 전체 생성"""
         shear_strength_spec_full = {
-            "Pu_shear": ("P_u", "[kN]", [2000.0, 3000.0, 6000.0], 200.0),
-            "Vu":      ("V_u", "[kN]", [150.0,  180.0,  250.0],  10.0),
+            "Vu":      ("V_u", "[kN]", [265.25,  265.25,  800.0],  10.0),
             "검토":    ("검토", "",     [0.0,    0.0,    0.0],   0.0),  # placeholder
         }
         shear_strength_spec_items = [
-            ("Pu_shear", ("P_u", "[kN]")),
             ("Vu",      ("V_u", "[kN]")),
             ("검토",    ("검토", "")),
         ]
@@ -310,7 +308,7 @@ def create_column_ui(In, sb, side_border="", h4=""):
             'button_key'        : 'add_row_btn2',
             'add_callback'      : add_shear_strength_row,
             'show_checkbox'     : False,
-            'attrs'             : ['Pu_shear', 'Vu'],
+            'attrs'             : ['Vu'],
             'row_count'         : st.session_state.shear_strength_count,
             'col_width'         : col_width,
             'spec_items'        : shear_strength_spec_items,
@@ -350,8 +348,8 @@ def create_column_ui(In, sb, side_border="", h4=""):
     def create_serviceability_section():
         """Serviceability 검토 섹션 전체 생성"""
         serviceability_spec_full = {
-            "P0":   ("P_0", "[kN]",   [0.0, 200.0, 500.0], 10.0),
-            "M0":   ("M_0", "[kN·m]", [40.0,  100.0,  150.0],  10.0),
+            "P0":   ("P_0", "[kN]",   [0.0, 1503.54, 2140.22], 10.0),
+            "M0":   ("M_0", "[kN·m]", [40.0,  171.26,  27.77],  10.0),
             "검토": ("검토", "",      [0.0,    0.0,    0.0],   0.0),  # placeholder
         }
         serviceability_spec_items = [
